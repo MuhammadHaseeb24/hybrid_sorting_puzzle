@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/level_data.dart';
 import '../providers/game_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/responsive.dart';
 import 'level_select_screen.dart';
 import 'settings_screen.dart';
 import 'achievements_screen.dart';
@@ -14,150 +15,177 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isSmall = size.height < 700;
+    final r = R(context);
 
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(gradient: AppTheme.mainGradient),
         child: SafeArea(
-          child: Column(
-            children: [
-              // Top bar with badge
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Consumer<GameProvider>(
-                  builder: (context, game, _) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        if (game.hasWeeklyBadge)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.goldGradient,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.gold.withOpacity(0.4),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('🥇', style: TextStyle(fontSize: 14)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Top Player',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black87,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: r.screenPadding,
+                      child: Column(
+                        children: [
+                          // Top badge
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Consumer<GameProvider>(
+                              builder: (context, game, _) {
+                                if (!game.hasWeeklyBadge) {
+                                  return SizedBox(height: r.sp(36));
+                                }
+                                return Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: r.sp(12),
+                                    vertical: r.sp(6),
                                   ),
-                                ),
-                              ],
+                                  decoration: BoxDecoration(
+                                    gradient: AppTheme.goldGradient,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.gold.withOpacity(0.4),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('🥇', style: TextStyle(fontSize: r.sp(14))),
+                                      SizedBox(width: r.sp(6)),
+                                      Text(
+                                        'Top Player',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: r.sp(12),
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ).animate().fadeIn().shimmer(duration: 2000.ms);
+                              },
                             ),
-                          ).animate().fadeIn().shimmer(duration: 2000.ms),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              Spacer(flex: isSmall ? 1 : 2),
-              // Logo
-              _buildLogo(isSmall)
-                  .animate()
-                  .fadeIn(duration: 600.ms)
-                  .slideY(begin: -0.2, end: 0, curve: Curves.easeOutCubic),
-              const SizedBox(height: 12),
-              Text(
-                'Sort • Guide • Escape',
-                style: GoogleFonts.poppins(
-                  fontSize: isSmall ? 13 : 16,
-                  fontWeight: FontWeight.w400,
-                  color: AppTheme.textSecondary,
-                  letterSpacing: 1.5,
-                ),
-              ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
-              // Stats row
-              const SizedBox(height: 20),
-              Consumer<GameProvider>(
-                builder: (context, game, _) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _statChip(Icons.star_rounded, '${game.totalStars}', AppTheme.warning),
-                      const SizedBox(width: 16),
-                      _statChip(Icons.flag_rounded, '${game.unlockedLevel - 1}/${LevelRepository.totalLevels}', AppTheme.accent),
-                    ],
-                  ).animate().fadeIn(delay: 400.ms);
-                },
-              ),
-              Spacer(flex: isSmall ? 1 : 2),
-              // Play button
-              _buildPlayButton(context, isSmall)
-                  .animate()
-                  .fadeIn(delay: 500.ms)
-                  .scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutBack),
-              const SizedBox(height: 20),
-              // Secondary buttons
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildSecondaryButton(
-                      icon: Icons.emoji_events_rounded,
-                      label: 'Achievements',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AchievementsScreen(),
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 16),
-                    _buildSecondaryButton(
-                      icon: Icons.settings_rounded,
-                      label: 'Settings',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
+
+                          SizedBox(height: r.isSmall ? 12 : 24),
+
+                          // Logo
+                          _buildLogo(r)
+                              .animate()
+                              .fadeIn(duration: 600.ms)
+                              .slideY(begin: -0.15, end: 0, curve: Curves.easeOutCubic),
+
+                          SizedBox(height: r.sp(10)),
+
+                          Text(
+                            'Sort • Guide • Escape',
+                            style: GoogleFonts.poppins(
+                              fontSize: r.sp(14),
+                              fontWeight: FontWeight.w400,
+                              color: AppTheme.textSecondary,
+                              letterSpacing: 1.2,
+                            ),
+                          ).animate().fadeIn(delay: 250.ms),
+
+                          SizedBox(height: r.sp(18)),
+
+                          // Stats
+                          Consumer<GameProvider>(
+                            builder: (context, game, _) {
+                              return Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: [
+                                  _statChip(Icons.star_rounded, '${game.totalStars}', AppTheme.warning, r),
+                                  _statChip(
+                                    Icons.flag_rounded,
+                                    '${game.unlockedLevel - 1}/${LevelRepository.totalLevels}',
+                                    AppTheme.accent,
+                                    r,
+                                  ),
+                                ],
+                              ).animate().fadeIn(delay: 350.ms);
+                            },
                           ),
-                        );
-                      },
+
+                          const Spacer(),
+
+                          // Play button
+                          _buildPlayButton(context, r)
+                              .animate()
+                              .fadeIn(delay: 450.ms)
+                              .scale(begin: const Offset(0.85, 0.85), curve: Curves.easeOutBack),
+
+                          SizedBox(height: r.sp(18)),
+
+                          // Secondary buttons
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 12,
+                            runSpacing: 10,
+                            children: [
+                              _secondaryButton(
+                                icon: Icons.emoji_events_rounded,
+                                label: 'Achievements',
+                                r: r,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+                                  );
+                                },
+                              ),
+                              _secondaryButton(
+                                icon: Icons.settings_rounded,
+                                label: 'Settings',
+                                r: r,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                  );
+                                },
+                              ),
+                            ],
+                          ).animate().fadeIn(delay: 600.ms),
+
+                          const Spacer(),
+
+                          Text(
+                            'Hybrid Casual Puzzle 2026',
+                            style: GoogleFonts.poppins(
+                              fontSize: r.sp(11),
+                              color: AppTheme.textSecondary.withOpacity(0.5),
+                            ),
+                          ),
+                          SizedBox(height: r.sp(12)),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
-              ).animate().fadeIn(delay: 700.ms),
-              Spacer(flex: isSmall ? 2 : 3),
-              Text(
-                'Hybrid Casual Puzzle 2026',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary.withOpacity(0.5),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _statChip(IconData icon, String value, Color color) {
+  Widget _statChip(IconData icon, String value, Color color, R r) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: r.sp(14), vertical: r.sp(8)),
       decoration: BoxDecoration(
         color: AppTheme.surfaceLight.withOpacity(0.6),
         borderRadius: BorderRadius.circular(12),
@@ -166,12 +194,12 @@ class HomeScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 6),
+          Icon(icon, size: r.sp(17), color: color),
+          SizedBox(width: r.sp(6)),
           Text(
             value,
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: r.sp(13),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -180,8 +208,8 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLogo(bool isSmall) {
-    final size = isSmall ? 80.0 : 100.0;
+  Widget _buildLogo(R r) {
+    final size = r.sp(r.isSmall ? 78 : 96);
     return Column(
       children: [
         Container(
@@ -196,19 +224,15 @@ class HomeScreen extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.primary.withOpacity(0.5),
-                blurRadius: 30,
-                spreadRadius: 5,
+                color: AppTheme.primary.withOpacity(0.45),
+                blurRadius: 28,
+                spreadRadius: 4,
               ),
             ],
           ),
-          child: Icon(
-            Icons.auto_awesome,
-            size: size * 0.48,
-            color: Colors.white,
-          ),
+          child: Icon(Icons.auto_awesome, size: size * 0.46, color: Colors.white),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: r.sp(16)),
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
             colors: [AppTheme.primary, AppTheme.accent, AppTheme.secondary],
@@ -216,27 +240,27 @@ class HomeScreen extends StatelessWidget {
           child: Text(
             'SORTIFY',
             style: GoogleFonts.poppins(
-              fontSize: isSmall ? 34 : 42,
+              fontSize: r.sp(r.isSmall ? 32 : 40),
               fontWeight: FontWeight.w800,
               color: Colors.white,
-              letterSpacing: 4,
+              letterSpacing: 3,
             ),
           ),
         ),
         Text(
           'HYBRID SORTING',
           style: GoogleFonts.poppins(
-            fontSize: isSmall ? 12 : 14,
+            fontSize: r.sp(12),
             fontWeight: FontWeight.w600,
             color: AppTheme.textSecondary,
-            letterSpacing: 4,
+            letterSpacing: 3.5,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPlayButton(BuildContext context, bool isSmall) {
+  Widget _buildPlayButton(BuildContext context, R r) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -248,12 +272,9 @@ class HomeScreen extends StatelessWidget {
                 opacity: animation,
                 child: SlideTransition(
                   position: Tween<Offset>(
-                    begin: const Offset(0, 0.1),
+                    begin: const Offset(0, 0.08),
                     end: Offset.zero,
-                  ).animate(CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  )),
+                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
                   child: child,
                 ),
               );
@@ -262,29 +283,28 @@ class HomeScreen extends StatelessWidget {
         );
       },
       child: Container(
-        width: isSmall ? 200 : 220,
-        height: isSmall ? 56 : 64,
+        width: r.sp(r.isSmall ? 190 : 210),
+        height: r.sp(r.isSmall ? 52 : 60),
         decoration: BoxDecoration(
           gradient: AppTheme.buttonGradient,
           borderRadius: BorderRadius.circular(32),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.primary.withOpacity(0.5),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: AppTheme.primary.withOpacity(0.45),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
             ),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.play_arrow_rounded,
-                size: isSmall ? 28 : 32, color: Colors.white),
-            const SizedBox(width: 8),
+            Icon(Icons.play_arrow_rounded, size: r.sp(30), color: Colors.white),
+            SizedBox(width: r.sp(6)),
             Text(
               'PLAY',
               style: GoogleFonts.poppins(
-                fontSize: isSmall ? 20 : 22,
+                fontSize: r.sp(20),
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
                 letterSpacing: 2,
@@ -296,28 +316,30 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSecondaryButton({
+  Widget _secondaryButton({
     required IconData icon,
     required String label,
+    required R r,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: r.sp(16), vertical: r.sp(11)),
         decoration: BoxDecoration(
           color: AppTheme.surfaceLight.withOpacity(0.6),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white.withOpacity(0.08)),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppTheme.textSecondary, size: 20),
-            const SizedBox(width: 8),
+            Icon(icon, color: AppTheme.textSecondary, size: r.sp(18)),
+            SizedBox(width: r.sp(7)),
             Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: r.sp(12.5),
                 fontWeight: FontWeight.w500,
                 color: AppTheme.textSecondary,
               ),

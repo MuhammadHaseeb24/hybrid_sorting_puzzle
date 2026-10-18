@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/level_data.dart';
 import '../models/achievement.dart';
 import '../services/progress_service.dart';
+import '../services/sound_service.dart';
 
 enum GameStatus { playing, won, lost }
 
@@ -17,7 +18,7 @@ class GameProvider extends ChangeNotifier {
   bool isAnimating = false;
   bool usedHintThisLevel = false;
 
-  // Boosters (loaded from storage)
+  // Boosters
   int undoCount = 5;
   int hintCount = 2;
   int extraTubeCount = 2;
@@ -38,6 +39,7 @@ class GameProvider extends ChangeNotifier {
   int gamesPlayed = 0;
   int perfectLevels = 0;
 
+  final SoundService sound = SoundService();
   bool _initialized = false;
 
   Future<void> init() async {
@@ -55,6 +57,15 @@ class GameProvider extends ChangeNotifier {
     hapticsEnabled = await ProgressService.getHapticsEnabled();
     gamesPlayed = await ProgressService.getGamesPlayed();
     perfectLevels = await ProgressService.getPerfectLevels();
+
+    await sound.init();
+    sound.setSoundEnabled(soundEnabled);
+    sound.setMusicEnabled(musicEnabled);
+
+    if (musicEnabled) {
+      await sound.playBackgroundMusic();
+    }
+
     _initialized = true;
     notifyListeners();
   }
@@ -82,6 +93,7 @@ class GameProvider extends ChangeNotifier {
     if (selectedTubeIndex == -1) {
       if (!tubes[index].isEmpty) {
         selectedTubeIndex = index;
+        sound.playSelect();
         notifyListeners();
       }
     } else if (selectedTubeIndex == index) {
@@ -98,6 +110,7 @@ class GameProvider extends ChangeNotifier {
 
     if (!source.canPourTo(dest)) {
       selectedTubeIndex = tubes[to].isEmpty ? -1 : to;
+      if (selectedTubeIndex != -1) sound.playSelect();
       notifyListeners();
       return;
     }
@@ -114,6 +127,7 @@ class GameProvider extends ChangeNotifier {
 
     moves++;
     selectedTubeIndex = -1;
+    sound.playPour();
 
     if (hapticsEnabled) {
       HapticFeedback.lightImpact();
@@ -122,9 +136,11 @@ class GameProvider extends ChangeNotifier {
     if (_checkWin()) {
       status = GameStatus.won;
       _calculateStars();
+      sound.playWin();
       _onLevelComplete();
     } else if (moves >= currentLevel.maxMoves) {
       status = GameStatus.lost;
+      sound.playLose();
     }
 
     notifyListeners();
@@ -152,7 +168,6 @@ class GameProvider extends ChangeNotifier {
     gamesPlayed++;
     await ProgressService.addMoves(moves);
 
-    // Save stars
     await ProgressService.saveStars(currentLevel.id, starsEarned);
     levelStars[currentLevel.id] = starsEarned > (levelStars[currentLevel.id] ?? 0)
         ? starsEarned
@@ -162,19 +177,17 @@ class GameProvider extends ChangeNotifier {
     if (starsEarned == 3) {
       await ProgressService.incrementPerfectLevels();
       perfectLevels++;
+      sound.playStar();
     }
 
-    // Unlock next level
     final nextId = currentLevel.id + 1;
     if (nextId > unlockedLevel && nextId <= LevelRepository.totalLevels) {
       unlockedLevel = nextId;
       await ProgressService.setUnlockedLevel(nextId);
     }
 
-    // Check achievements
     await _checkAchievements();
 
-    // Weekly badge logic: if player has high stars, grant weekly badge
     if (totalStars >= 30 && !hasWeeklyBadge) {
       await ProgressService.startWeeklyBadge();
       hasWeeklyBadge = true;
@@ -187,8 +200,7 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> _checkAchievements() async {
     final completedLevels = levelStars.keys.length;
-    final threeStarCount =
-        levelStars.values.where((s) => s == 3).length;
+    final threeStarCount = levelStars.values.where((s) => s == 3).length;
 
     final checks = <String, bool>{
       'first_win': completedLevels >= 1,
@@ -228,16 +240,15 @@ class GameProvider extends ChangeNotifier {
     selectedTubeIndex = -1;
     undoCount--;
     await ProgressService.setUndoCount(undoCount);
+    sound.playClick();
     if (hapticsEnabled) HapticFeedback.mediumImpact();
     notifyListeners();
   }
 
-  /// Returns true if hint was used, false if needs ad
   Future<bool> useHint() async {
     if (status != GameStatus.playing) return false;
 
     if (hintCount > 0) {
-      // Free / remaining hints
       for (int i = 0; i < tubes.length; i++) {
         for (int j = 0; j < tubes.length; j++) {
           if (i != j && tubes[i].canPourTo(tubes[j])) {
@@ -245,6 +256,7 @@ class GameProvider extends ChangeNotifier {
             hintCount--;
             usedHintThisLevel = true;
             await ProgressService.setHintCount(hintCount);
+            sound.playClick();
             notifyListeners();
             return true;
           }
@@ -252,14 +264,13 @@ class GameProvider extends ChangeNotifier {
       }
       return false;
     }
-    // No free hints left → caller should show ad dialog
     return false;
   }
 
   Future<void> addHintFromAd() async {
-    // After watching ad, give 3 hints
     hintCount += 3;
     await ProgressService.setHintCount(hintCount);
+    sound.playClick();
     notifyListeners();
   }
 
@@ -268,6 +279,7 @@ class GameProvider extends ChangeNotifier {
     tubes.add(Tube(colors: [], capacity: currentLevel.tubeCapacity));
     extraTubeCount--;
     await ProgressService.setExtraTubeCount(extraTubeCount);
+    sound.playClick();
     if (hapticsEnabled) HapticFeedback.mediumImpact();
     notifyListeners();
   }
@@ -275,16 +287,19 @@ class GameProvider extends ChangeNotifier {
   Future<void> addExtraTubeFromAd() async {
     extraTubeCount += 2;
     await ProgressService.setExtraTubeCount(extraTubeCount);
+    sound.playClick();
     notifyListeners();
   }
 
   Future<void> addUndoFromAd() async {
     undoCount += 3;
     await ProgressService.setUndoCount(undoCount);
+    sound.playClick();
     notifyListeners();
   }
 
   void resetLevel() {
+    sound.playClick();
     loadLevel(currentLevel.id);
   }
 
@@ -294,15 +309,16 @@ class GameProvider extends ChangeNotifier {
   int getStarsForLevel(int id) => levelStars[id] ?? 0;
   bool isLevelUnlocked(int id) => id <= unlockedLevel;
 
-  // Settings
   Future<void> setSound(bool value) async {
     soundEnabled = value;
+    sound.setSoundEnabled(value);
     await ProgressService.setSoundEnabled(value);
     notifyListeners();
   }
 
   Future<void> setMusic(bool value) async {
     musicEnabled = value;
+    sound.setMusicEnabled(value);
     await ProgressService.setMusicEnabled(value);
     notifyListeners();
   }

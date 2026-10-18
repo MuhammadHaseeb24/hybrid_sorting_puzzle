@@ -39,14 +39,13 @@ Requirements: Flutter 3.0+
 
 ## Project Structure
 
-```
 lib/
 ├── main.dart
 ├── models/
-│   ├── level_data.dart      # Tube, LevelData, 30 levels, colors
-│   └── achievement.dart     # Achievement definitions
+│   ├── level_data.dart          # Tube, LevelData, 30 levels, colors
+│   └── achievement.dart         # Achievement definitions
 ├── providers/
-│   └── game_provider.dart   # Full game state + persistence
+│   └── game_provider.dart       # Full game state + persistence + sound
 ├── screens/
 │   ├── home_screen.dart
 │   ├── level_select_screen.dart
@@ -56,12 +55,14 @@ lib/
 ├── widgets/
 │   ├── tube_widget.dart
 │   ├── booster_button.dart
-│   └── ad_dialog.dart       # Simulated rewarded ad
+│   └── ad_dialog.dart           # Simulated rewarded ad
 ├── services/
-│   └── progress_service.dart # SharedPreferences
+│   ├── progress_service.dart    # SharedPreferences
+│   └── sound_service.dart       # Background music + SFX
 └── utils/
-    └── app_theme.dart
-```
+├── app_theme.dart
+└── responsive.dart          # Responsive helper for all screen sizes
+
 
 ## Booster Rules
 - Start with **2 free Hints**, 5 Undos, 2 Extra Tubes

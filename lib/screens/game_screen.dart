@@ -5,6 +5,7 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/game_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/responsive.dart';
 import '../widgets/tube_widget.dart';
 import '../widgets/booster_button.dart';
 import '../widgets/ad_dialog.dart';
@@ -23,8 +24,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    _confettiController =
-        ConfettiController(duration: const Duration(seconds: 3));
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
   }
 
   @override
@@ -51,8 +51,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isSmall = size.height < 700;
+    final r = R(context);
 
     return Consumer<GameProvider>(
       builder: (context, game, _) {
@@ -64,22 +63,22 @@ class _GameScreenState extends State<GameScreen> {
 
         return Scaffold(
           body: Container(
+            width: double.infinity,
+            height: double.infinity,
             decoration: const BoxDecoration(gradient: AppTheme.mainGradient),
             child: Stack(
               children: [
                 SafeArea(
                   child: Column(
                     children: [
-                      _buildTopBar(context, game),
-                      SizedBox(height: isSmall ? 4 : 8),
-                      _buildInfoBar(game, isSmall),
-                      const Spacer(),
-                      _buildTubesBoard(game, size),
-                      const Spacer(),
-                      _buildBoosters(game),
-                      SizedBox(height: isSmall ? 8 : 12),
-                      _buildBottomActions(context, game),
-                      SizedBox(height: isSmall ? 12 : 16),
+                      _buildTopBar(context, game, r),
+                      SizedBox(height: r.sp(4)),
+                      _buildInfoBar(game, r),
+                      Expanded(child: Center(child: _buildTubesBoard(game, r))),
+                      _buildBoosters(game, r),
+                      SizedBox(height: r.sp(6)),
+                      _buildBottomActions(context, game, r),
+                      SizedBox(height: r.sp(10)),
                     ],
                   ),
                 ),
@@ -96,14 +95,12 @@ class _GameScreenState extends State<GameScreen> {
                       AppTheme.warning,
                       Colors.white,
                     ],
-                    numberOfParticles: 40,
+                    numberOfParticles: 35,
                     gravity: 0.2,
                   ),
                 ),
-                if (game.status == GameStatus.won)
-                  _buildWinOverlay(context, game),
-                if (game.status == GameStatus.lost)
-                  _buildLoseOverlay(context, game),
+                if (game.status == GameStatus.won) _buildWinOverlay(context, game, r),
+                if (game.status == GameStatus.lost) _buildLoseOverlay(context, game, r),
               ],
             ),
           ),
@@ -112,14 +109,14 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context, GameProvider game) {
+  Widget _buildTopBar(BuildContext context, GameProvider game, R r) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: r.sp(4), vertical: r.sp(2)),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            icon: Icon(Icons.arrow_back_ios_new_rounded, size: r.sp(20)),
             color: AppTheme.textPrimary,
           ),
           Expanded(
@@ -128,14 +125,14 @@ class _GameScreenState extends State<GameScreen> {
                 Text(
                   'Level ${game.currentLevel.id}',
                   style: GoogleFonts.poppins(
-                    fontSize: 18,
+                    fontSize: r.sp(17),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 Text(
                   game.currentLevel.name,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: r.sp(11),
                     color: AppTheme.textSecondary,
                   ),
                 ),
@@ -144,7 +141,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
           IconButton(
             onPressed: () => game.resetLevel(),
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icon(Icons.refresh_rounded, size: r.sp(22)),
             color: AppTheme.textPrimary,
           ),
         ],
@@ -152,22 +149,29 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildInfoBar(GameProvider game, bool isSmall) {
+  Widget _buildInfoBar(GameProvider game, R r) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isSmall ? 16 : 24),
+      padding: EdgeInsets.symmetric(horizontal: r.sp(16)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _infoChip(
-            icon: Icons.swap_horiz_rounded,
-            label: 'Moves',
-            value: '${game.moves}/${game.currentLevel.maxMoves}',
+          Flexible(
+            child: _infoChip(
+              icon: Icons.swap_horiz_rounded,
+              label: 'Moves',
+              value: '${game.moves}/${game.currentLevel.maxMoves}',
+              r: r,
+            ),
           ),
-          _infoChip(
-            icon: Icons.star_rounded,
-            label: '3★ Target',
-            value: '≤${game.currentLevel.stars3Moves}',
-            color: AppTheme.warning,
+          SizedBox(width: r.sp(10)),
+          Flexible(
+            child: _infoChip(
+              icon: Icons.star_rounded,
+              label: '3★ Target',
+              value: '≤${game.currentLevel.stars3Moves}',
+              color: AppTheme.warning,
+              r: r,
+            ),
           ),
         ],
       ),
@@ -179,136 +183,151 @@ class _GameScreenState extends State<GameScreen> {
     required String label,
     required String value,
     Color color = AppTheme.primary,
+    required R r,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: r.sp(12), vertical: r.sp(7)),
       decoration: BoxDecoration(
         color: AppTheme.surfaceLight.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  color: AppTheme.textSecondary,
+          Icon(icon, size: r.sp(16), color: color),
+          SizedBox(width: r.sp(6)),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: r.sp(9.5),
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
-              ),
-              Text(
-                value,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: r.sp(13),
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTubesBoard(GameProvider game, Size size) {
+  Widget _buildTubesBoard(GameProvider game, R r) {
     final tubes = game.tubes;
     final tubeCount = tubes.length;
-    final maxPerRow = size.width > 400 ? 6 : 5;
-    final availableWidth = size.width - 32;
-    final tubeWidth =
-        (availableWidth / tubeCount.clamp(1, maxPerRow)).clamp(40.0, 62.0);
-    final tubeHeight = tubeWidth * 3.1;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        runSpacing: 16,
-        children: List.generate(tubes.length, (index) {
-          return TubeWidget(
-            tube: tubes[index],
-            isSelected: game.selectedTubeIndex == index,
-            onTap: () => game.selectTube(index),
-            width: tubeWidth,
-            height: tubeHeight,
-          )
-              .animate(delay: (30 * index).ms)
-              .fadeIn(duration: 250.ms)
-              .slideY(begin: 0.12, end: 0);
-        }),
+    // Calculate best tube size based on available width and count
+    final availableWidth = r.width - r.sp(28);
+    final maxPerRow = r.isTablet ? 8 : (r.width > 400 ? 6 : 5);
+    final itemsInRow = tubeCount.clamp(1, maxPerRow);
+    final tubeWidth = (availableWidth / itemsInRow).clamp(r.tubeMinWidth, r.tubeMaxWidth);
+    final tubeHeight = tubeWidth * 3.05;
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: r.sp(10), vertical: r.sp(8)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: r.width),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: r.sp(7),
+          runSpacing: r.sp(14),
+          children: List.generate(tubes.length, (index) {
+            return TubeWidget(
+              tube: tubes[index],
+              isSelected: game.selectedTubeIndex == index,
+              onTap: () => game.selectTube(index),
+              width: tubeWidth,
+              height: tubeHeight,
+            )
+                .animate(delay: (25 * index).ms)
+                .fadeIn(duration: 220.ms)
+                .slideY(begin: 0.1, end: 0);
+          }),
+        ),
       ),
     );
   }
 
-  Widget _buildBoosters(GameProvider game) {
+  Widget _buildBoosters(GameProvider game, R r) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          BoosterButton(
-            icon: Icons.undo_rounded,
-            label: 'Undo',
-            count: game.undoCount,
-            onTap: () {
-              if (game.undoCount > 0) {
-                game.undo();
-              } else {
-                _showAdDialog(
-                  title: 'Get More Undos',
-                  reward: 'Watch a short ad to get +3 Undos',
-                  onComplete: () => game.addUndoFromAd(),
-                );
-              }
-            },
-            color: AppTheme.primary,
-          ),
-          BoosterButton(
-            icon: Icons.lightbulb_outline_rounded,
-            label: 'Hint',
-            count: game.hintCount,
-            onTap: () async {
-              if (game.hintCount > 0) {
-                await game.useHint();
-              } else {
-                _showAdDialog(
-                  title: 'Get More Hints',
-                  reward: 'Watch a short ad to get +3 Hints',
-                  onComplete: () => game.addHintFromAd(),
-                );
-              }
-            },
-            color: AppTheme.warning,
-          ),
-          BoosterButton(
-            icon: Icons.add_box_outlined,
-            label: 'Extra',
-            count: game.extraTubeCount,
-            onTap: () {
-              if (game.extraTubeCount > 0) {
-                game.addExtraTube();
-              } else {
-                _showAdDialog(
-                  title: 'Get Extra Tubes',
-                  reward: 'Watch a short ad to get +2 Extra Tubes',
-                  onComplete: () => game.addExtraTubeFromAd(),
-                );
-              }
-            },
-            color: AppTheme.accent,
-          ),
-        ],
+      padding: EdgeInsets.symmetric(horizontal: r.sp(10)),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            BoosterButton(
+              icon: Icons.undo_rounded,
+              label: 'Undo',
+              count: game.undoCount,
+              onTap: () {
+                if (game.undoCount > 0) {
+                  game.undo();
+                } else {
+                  _showAdDialog(
+                    title: 'Get More Undos',
+                    reward: 'Watch a short ad to get +3 Undos',
+                    onComplete: () => game.addUndoFromAd(),
+                  );
+                }
+              },
+              color: AppTheme.primary,
+            ),
+            SizedBox(width: r.sp(10)),
+            BoosterButton(
+              icon: Icons.lightbulb_outline_rounded,
+              label: 'Hint',
+              count: game.hintCount,
+              onTap: () async {
+                if (game.hintCount > 0) {
+                  await game.useHint();
+                } else {
+                  _showAdDialog(
+                    title: 'Get More Hints',
+                    reward: 'Watch a short ad to get +3 Hints',
+                    onComplete: () => game.addHintFromAd(),
+                  );
+                }
+              },
+              color: AppTheme.warning,
+            ),
+            SizedBox(width: r.sp(10)),
+            BoosterButton(
+              icon: Icons.add_box_outlined,
+              label: 'Extra',
+              count: game.extraTubeCount,
+              onTap: () {
+                if (game.extraTubeCount > 0) {
+                  game.addExtraTube();
+                } else {
+                  _showAdDialog(
+                    title: 'Get Extra Tubes',
+                    reward: 'Watch a short ad to get +2 Extra Tubes',
+                    onComplete: () => game.addExtraTubeFromAd(),
+                  );
+                }
+              },
+              color: AppTheme.accent,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBottomActions(BuildContext context, GameProvider game) {
+  Widget _buildBottomActions(BuildContext context, GameProvider game, R r) {
     return TextButton.icon(
       onPressed: () {
         Navigator.pushReplacement(
@@ -316,117 +335,115 @@ class _GameScreenState extends State<GameScreen> {
           MaterialPageRoute(builder: (_) => const LevelSelectScreen()),
         );
       },
-      icon: const Icon(Icons.grid_view_rounded, size: 18),
+      icon: Icon(Icons.grid_view_rounded, size: r.sp(17)),
       label: Text(
         'Levels',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w500, fontSize: r.sp(13)),
       ),
       style: TextButton.styleFrom(foregroundColor: AppTheme.textSecondary),
     );
   }
 
-  Widget _buildWinOverlay(BuildContext context, GameProvider game) {
+  Widget _buildWinOverlay(BuildContext context, GameProvider game, R r) {
     return Container(
       color: Colors.black.withOpacity(0.78),
       child: Center(
         child: SingleChildScrollView(
+          padding: EdgeInsets.all(r.sp(20)),
           child: Container(
-            margin: const EdgeInsets.all(28),
-            padding: const EdgeInsets.all(24),
+            width: double.infinity,
+            constraints: BoxConstraints(maxWidth: r.isTablet ? 420 : 340),
+            padding: EdgeInsets.all(r.sp(22)),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [AppTheme.surfaceLight, AppTheme.card],
               ),
-              borderRadius: BorderRadius.circular(28),
-              border:
-                  Border.all(color: AppTheme.accent.withOpacity(0.4), width: 2),
+              borderRadius: BorderRadius.circular(r.sp(24)),
+              border: Border.all(color: AppTheme.accent.withOpacity(0.4), width: 2),
               boxShadow: [
                 BoxShadow(
                   color: AppTheme.accent.withOpacity(0.25),
-                  blurRadius: 30,
-                  spreadRadius: 4,
+                  blurRadius: 24,
+                  spreadRadius: 3,
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.emoji_events_rounded,
-                        size: 60, color: AppTheme.warning)
+                Icon(Icons.emoji_events_rounded, size: r.sp(54), color: AppTheme.warning)
                     .animate()
-                    .scale(duration: 600.ms, curve: Curves.elasticOut),
-                const SizedBox(height: 12),
+                    .scale(duration: 550.ms, curve: Curves.elasticOut),
+                SizedBox(height: r.sp(10)),
                 Text(
                   'Level Complete!',
                   style: GoogleFonts.poppins(
-                    fontSize: 24,
+                    fontSize: r.sp(22),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: r.sp(4)),
                 Text(
                   'Moves: ${game.moves}',
                   style: GoogleFonts.poppins(
-                    fontSize: 15,
+                    fontSize: r.sp(14),
                     color: AppTheme.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: r.sp(12)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(3, (i) {
                     return Icon(
                       Icons.star_rounded,
-                      size: 40,
+                      size: r.sp(36),
                       color: i < game.starsEarned
                           ? AppTheme.warning
                           : AppTheme.textSecondary.withOpacity(0.25),
                     )
-                        .animate(delay: (180 * i).ms)
-                        .scale(
-                          begin: const Offset(0, 0),
-                          duration: 400.ms,
-                          curve: Curves.elasticOut,
-                        );
+                        .animate(delay: (160 * i).ms)
+                        .scale(begin: const Offset(0, 0), duration: 380.ms, curve: Curves.elasticOut);
                   }),
                 ),
                 if (game.hasWeeklyBadge) ...[
-                  const SizedBox(height: 12),
+                  SizedBox(height: r.sp(10)),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: EdgeInsets.symmetric(horizontal: r.sp(10), vertical: r.sp(5)),
                     decoration: BoxDecoration(
                       gradient: AppTheme.goldGradient,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Text(
                       '🥇 Top Player Badge Active',
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: r.sp(11),
                         fontWeight: FontWeight.w700,
                         color: Colors.black87,
                       ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                SizedBox(height: r.sp(20)),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
                     _overlayButton(
                       label: 'Replay',
                       icon: Icons.refresh_rounded,
                       onTap: () => game.resetLevel(),
                       outlined: true,
+                      r: r,
                     ),
-                    const SizedBox(width: 12),
                     if (game.hasNextLevel)
                       _overlayButton(
                         label: 'Next',
                         icon: Icons.arrow_forward_rounded,
                         onTap: () => game.loadLevel(game.nextLevelId),
+                        r: r,
                       )
                     else
                       _overlayButton(
@@ -435,18 +452,17 @@ class _GameScreenState extends State<GameScreen> {
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => const LevelSelectScreen(),
-                            ),
+                            MaterialPageRoute(builder: (_) => const LevelSelectScreen()),
                           );
                         },
+                        r: r,
                       ),
                   ],
                 ),
               ],
             ),
-          ).animate().fadeIn(duration: 300.ms).scale(
-                begin: const Offset(0.85, 0.85),
+          ).animate().fadeIn(duration: 280.ms).scale(
+                begin: const Offset(0.88, 0.88),
                 curve: Curves.easeOutBack,
               ),
         ),
@@ -454,49 +470,51 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildLoseOverlay(BuildContext context, GameProvider game) {
+  Widget _buildLoseOverlay(BuildContext context, GameProvider game, R r) {
     return Container(
       color: Colors.black.withOpacity(0.78),
       child: Center(
         child: Container(
-          margin: const EdgeInsets.all(28),
-          padding: const EdgeInsets.all(24),
+          margin: EdgeInsets.all(r.sp(24)),
+          width: double.infinity,
+          constraints: BoxConstraints(maxWidth: r.isTablet ? 400 : 320),
+          padding: EdgeInsets.all(r.sp(22)),
           decoration: BoxDecoration(
             color: AppTheme.card,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-                color: AppTheme.secondary.withOpacity(0.4), width: 2),
+            borderRadius: BorderRadius.circular(r.sp(24)),
+            border: Border.all(color: AppTheme.secondary.withOpacity(0.4), width: 2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.sentiment_dissatisfied_rounded,
-                  size: 60, color: AppTheme.secondary),
-              const SizedBox(height: 12),
+              Icon(Icons.sentiment_dissatisfied_rounded, size: r.sp(54), color: AppTheme.secondary),
+              SizedBox(height: r.sp(10)),
               Text(
                 'Out of Moves!',
                 style: GoogleFonts.poppins(
-                  fontSize: 22,
+                  fontSize: r.sp(20),
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: r.sp(5)),
               Text(
                 'Try again with better strategy',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
+                  fontSize: r.sp(13),
                   color: AppTheme.textSecondary,
                 ),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: r.sp(20)),
               _overlayButton(
                 label: 'Try Again',
                 icon: Icons.refresh_rounded,
                 onTap: () => game.resetLevel(),
+                r: r,
               ),
             ],
           ),
-        ).animate().fadeIn().scale(begin: const Offset(0.85, 0.85)),
+        ).animate().fadeIn().scale(begin: const Offset(0.88, 0.88)),
       ),
     );
   }
@@ -505,16 +523,17 @@ class _GameScreenState extends State<GameScreen> {
     required String label,
     required IconData icon,
     required VoidCallback onTap,
+    required R r,
     bool outlined = false,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: r.sp(20), vertical: r.sp(11)),
         decoration: BoxDecoration(
           gradient: outlined ? null : AppTheme.buttonGradient,
           color: outlined ? Colors.transparent : null,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: outlined
               ? Border.all(color: AppTheme.primary.withOpacity(0.5), width: 1.5)
               : null,
@@ -523,20 +542,20 @@ class _GameScreenState extends State<GameScreen> {
               : [
                   BoxShadow(
                     color: AppTheme.primary.withOpacity(0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
+            Icon(icon, color: Colors.white, size: r.sp(18)),
+            SizedBox(width: r.sp(6)),
             Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 15,
+                fontSize: r.sp(14),
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
               ),

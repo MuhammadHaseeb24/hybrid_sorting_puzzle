@@ -490,7 +490,7 @@ class _GameScreenState extends State<GameScreen> {
               Icon(Icons.sentiment_dissatisfied_rounded, size: r.sp(54), color: AppTheme.secondary),
               SizedBox(height: r.sp(10)),
               Text(
-                'Out of Moves!',
+                game.loseReason == 'stuck' ? 'No Moves Left!' : 'Out of Moves!',
                 style: GoogleFonts.poppins(
                   fontSize: r.sp(20),
                   fontWeight: FontWeight.w700,
@@ -498,7 +498,9 @@ class _GameScreenState extends State<GameScreen> {
               ),
               SizedBox(height: r.sp(5)),
               Text(
-                'Try again with better strategy',
+                game.loseReason == 'stuck'
+                    ? 'No moves, undos or extra tubes left. Restart the level.'
+                    : 'Try again with better strategy',
                 style: GoogleFonts.poppins(
                   fontSize: r.sp(13),
                   color: AppTheme.textSecondary,

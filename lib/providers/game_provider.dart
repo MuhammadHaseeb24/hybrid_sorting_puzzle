@@ -17,6 +17,7 @@ class GameProvider extends ChangeNotifier {
   int starsEarned = 0;
   bool isAnimating = false;
   bool usedHintThisLevel = false;
+  String loseReason = ''; // 'moves' or 'stuck'
 
   // Boosters
   int undoCount = 5;
@@ -80,6 +81,7 @@ class GameProvider extends ChangeNotifier {
     starsEarned = 0;
     isAnimating = false;
     usedHintThisLevel = false;
+    loseReason = '';
     notifyListeners();
   }
 
@@ -140,10 +142,32 @@ class GameProvider extends ChangeNotifier {
       _onLevelComplete();
     } else if (moves >= currentLevel.maxMoves) {
       status = GameStatus.lost;
+      loseReason = 'moves';
+      sound.playLose();
+    } else if (_isStuck()) {
+      status = GameStatus.lost;
+      loseReason = 'stuck';
       sound.playLose();
     }
 
     notifyListeners();
+  }
+
+  /// True if at least one legal pour exists on the board.
+  bool get hasAnyMove {
+    for (int i = 0; i < tubes.length; i++) {
+      for (int j = 0; j < tubes.length; j++) {
+        if (i != j && tubes[i].canPourTo(tubes[j])) return true;
+      }
+    }
+    return false;
+  }
+
+  /// Stuck = no legal move AND no extra tube AND no undo left.
+  bool _isStuck() {
+    if (hasAnyMove) return false;
+    final canUndo = undoCount > 0 && history.isNotEmpty;
+    return extraTubeCount <= 0 && !canUndo;
   }
 
   bool _checkWin() {
@@ -298,6 +322,8 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Restart the current level from the very beginning:
+  /// original tubes (extra tubes removed), moves = 0, history cleared.
   void resetLevel() {
     sound.playClick();
     loadLevel(currentLevel.id);

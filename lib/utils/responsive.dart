@@ -19,6 +19,7 @@ class R {
     isMedium = height >= 680 && height < 850;
     isLarge = height >= 850;
     isTablet = width >= 600;
+    // Base design width 390
     scale = (width / 390).clamp(0.82, 1.25);
   }
 
@@ -28,9 +29,9 @@ class R {
   double wp(double percent) => width * percent;
 
   EdgeInsets get screenPadding => EdgeInsets.symmetric(
-    horizontal: isTablet ? 32 : (isSmall ? 12 : 16),
-    vertical: isSmall ? 8 : 12,
-  );
+        horizontal: isTablet ? 32 : (isSmall ? 12 : 16),
+        vertical: isSmall ? 8 : 12,
+      );
 
   int get levelGridCount {
     if (width >= 900) return 5;

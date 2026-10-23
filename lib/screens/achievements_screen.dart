@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/achievement.dart';
 import '../providers/game_provider.dart';
 import '../utils/app_theme.dart';
+import '../widgets/animated_backdrop.dart';
 
 class AchievementsScreen extends StatelessWidget {
   const AchievementsScreen({super.key});
@@ -12,8 +13,7 @@ class AchievementsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.mainGradient),
+      body: AnimatedBackdrop(
         child: SafeArea(
           child: Column(
             children: [

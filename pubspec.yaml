@@ -1,5 +1,5 @@
 name: sortify
-description: Sortify - Professional Hybrid Sorting Puzzle Game 2026
+description: Sortify - 3D Liquid Sorting Puzzle, 320 levels
 publish_to: "none"
 version: 1.0.0+1
 
@@ -16,6 +16,7 @@ dependencies:
   confetti: ^0.7.0
   shared_preferences: ^2.3.2
   intl: ^0.19.0
+  collection: ^1.18.0
   audioplayers: ^5.2.1
   flutter_sound: ^9.30.0
 

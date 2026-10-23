@@ -11,8 +11,6 @@ class SoundService {
 
   // Background music -> flutter_sound
   final FlutterSoundPlayer _musicPlayer = FlutterSoundPlayer();
-  // Sound effects -> audioplayers
-  final AudioPlayer _sfxPlayer = AudioPlayer();
 
   static const String _musicAsset = 'assets/sounds/bg_music.mp3';
   Uint8List? _musicBytes;
@@ -24,11 +22,6 @@ class SoundService {
   bool musicEnabled = true;
 
   Future<void> init() async {
-    try {
-      await _sfxPlayer.setVolume(0.8);
-    } catch (e) {
-      debugPrint('SoundService sfx init error: $e');
-    }
     try {
       if (!_musicPlayerOpen) {
         await _musicPlayer.openPlayer();
@@ -105,60 +98,29 @@ class SoundService {
     } catch (_) {}
   }
 
-  // ========== SOUND EFFECTS ==========
-  Future<void> playSelect() async {
+  // ========== SOUND EFFECTS (small player pool so sounds can overlap) ==========
+  final List<AudioPlayer> _pool = List.generate(4, (_) => AudioPlayer());
+  int _poolIdx = 0;
+
+  Future<void> _play(String file, {double volume = 0.8}) async {
     if (!soundEnabled) return;
     try {
-      await _sfxPlayer.play(AssetSource('sounds/select.mp3'));
+      final p = _pool[_poolIdx];
+      _poolIdx = (_poolIdx + 1) % _pool.length;
+      await p.stop();
+      await p.setVolume(volume);
+      await p.play(AssetSource('sounds/$file'));
     } catch (e) {
-      debugPrint('select sfx error: $e');
+      debugPrint('$file sfx error: $e');
     }
   }
 
-  Future<void> playPour() async {
-    if (!soundEnabled) return;
-    try {
-      await _sfxPlayer.play(AssetSource('sounds/pour.mp3'));
-    } catch (e) {
-      debugPrint('pour sfx error: $e');
-    }
-  }
-
-  Future<void> playWin() async {
-    if (!soundEnabled) return;
-    try {
-      await _sfxPlayer.play(AssetSource('sounds/win.mp3'));
-    } catch (e) {
-      debugPrint('win sfx error: $e');
-    }
-  }
-
-  Future<void> playLose() async {
-    if (!soundEnabled) return;
-    try {
-      await _sfxPlayer.play(AssetSource('sounds/lose.mp3'));
-    } catch (e) {
-      debugPrint('lose sfx error: $e');
-    }
-  }
-
-  Future<void> playClick() async {
-    if (!soundEnabled) return;
-    try {
-      await _sfxPlayer.play(AssetSource('sounds/click.mp3'));
-    } catch (e) {
-      debugPrint('click sfx error: $e');
-    }
-  }
-
-  Future<void> playStar() async {
-    if (!soundEnabled) return;
-    try {
-      await _sfxPlayer.play(AssetSource('sounds/star.mp3'));
-    } catch (e) {
-      debugPrint('star sfx error: $e');
-    }
-  }
+  Future<void> playSelect() => _play('select.mp3');
+  Future<void> playPour() => _play('pour.mp3', volume: 0.9);
+  Future<void> playWin() => _play('win.mp3', volume: 1.0);
+  Future<void> playLose() => _play('lose.mp3');
+  Future<void> playClick() => _play('click.mp3', volume: 0.7);
+  Future<void> playStar() => _play('star.mp3');
 
   void setSoundEnabled(bool value) {
     soundEnabled = value;
@@ -181,6 +143,8 @@ class SoundService {
         _musicPlayerOpen = false;
       }
     } catch (_) {}
-    await _sfxPlayer.dispose();
+    for (final p in _pool) {
+      await p.dispose();
+    }
   }
 }

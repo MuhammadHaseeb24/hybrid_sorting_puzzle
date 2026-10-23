@@ -22,15 +22,47 @@ void main() {
   runApp(const SortifyApp());
 }
 
-class SortifyApp extends StatelessWidget {
+class SortifyApp extends StatefulWidget {
   const SortifyApp({super.key});
 
   @override
+  State<SortifyApp> createState() => _SortifyAppState();
+}
+
+class _SortifyAppState extends State<SortifyApp> with WidgetsBindingObserver {
+  final GameProvider _game = GameProvider();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _game.init();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Pause music when the app goes to background.
+    if (state == AppLifecycleState.resumed) {
+      _game.sound.resumeBackgroundMusic();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _game.sound.pauseBackgroundMusic();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _game.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => GameProvider()..init(),
+    return ChangeNotifierProvider<GameProvider>.value(
+      value: _game,
       child: MaterialApp(
-        title: 'Sortify - Hybrid Sorting Puzzle',
+        title: 'Sortify - 3D Liquid Sorting',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const HomeScreen(),

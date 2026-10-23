@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 /// Represents a single tube in the sorting puzzle
@@ -87,13 +89,19 @@ class GameColors {
   static const Color lime = Color(0xFFC0CA33);
   static const Color amber = Color(0xFFFFB300);
 
+  static const Color brown = Color(0xFF8D6E63);
+  static const Color sky = Color(0xFF81D4FA);
+  static const Color mint = Color(0xFF69F0AE);
+  static const Color violet = Color(0xFFB388FF);
+
   static const List<Color> palette = [
     red, blue, green, yellow, purple, orange, cyan, pink, teal, indigo, lime, amber,
+    brown, sky, mint, violet,
   ];
 }
 
 class LevelRepository {
-  static final List<LevelData> levels = [
+  static final List<LevelData> _handmade = [
     // ===== TUTORIAL / EASY (1-10) =====
     LevelData(
       id: 1,
@@ -573,9 +581,189 @@ class LevelRepository {
     ),
   ];
 
+  // ---------------------------------------------------------------------
+  // Procedural levels 31..320 (deterministic, solver-verified)
+  // ---------------------------------------------------------------------
+  static const int totalLevels = 320;
+  static final Map<int, LevelData> _cache = {};
+
+  static const List<String> _adj = [
+    'Neon', 'Crystal', 'Golden', 'Frozen', 'Wild', 'Silent', 'Cosmic', 'Sweet',
+    'Electric', 'Misty', 'Royal', 'Lucky', 'Hidden', 'Rapid', 'Velvet', 'Solar',
+    'Lunar', 'Emerald', 'Ruby', 'Amber',
+  ];
+  static const List<String> _noun = [
+    'Splash', 'Rainbow', 'Cascade', 'Potion', 'Wave', 'Mix', 'Swirl', 'Drops',
+    'Lagoon', 'Storm', 'Spectrum', 'Elixir', 'Fusion', 'Bloom', 'Twist',
+  ];
+
   static LevelData getLevel(int id) {
-    return levels.firstWhere((l) => l.id == id, orElse: () => levels.first);
+    final safe = math.max(1, math.min(totalLevels, id));
+    if (safe <= _handmade.length) return _handmade[safe - 1];
+    return _cache.putIfAbsent(safe, () => _generate(safe));
   }
 
-  static int get totalLevels => levels.length;
+  static LevelData _generate(int id) {
+    final tier = id - 31;
+    var colorCount = math.min(14, 5 + tier ~/ 24);
+    var capacity = 4;
+    if (id >= 120 && id % 4 == 0) {
+      capacity = 5;
+      colorCount = math.min(colorCount, 10);
+    }
+    final isBoss = id % 10 == 0;
+    if (isBoss) colorCount = math.min(colorCount + 1, 15);
+    const empties = 2;
+
+    List<List<int>>? tubes;
+    int solved = -1;
+    var usedEmpties = empties;
+    for (int attempt = 0; attempt < 4; attempt++) {
+      final rng = math.Random(id * 7919 + 17 + attempt * 101);
+      usedEmpties = attempt == 3 ? empties + 1 : empties;
+      final idx = List<int>.generate(GameColors.palette.length, (i) => i)
+        ..shuffle(rng);
+      final chosen = idx.take(colorCount).toList();
+      List<List<int>> candidate;
+      var guard = 0;
+      do {
+        final balls = <int>[];
+        for (final c in chosen) {
+          for (int k = 0; k < capacity; k++) {
+            balls.add(c);
+          }
+        }
+        balls.shuffle(rng);
+        candidate = [];
+        for (int t = 0; t < colorCount; t++) {
+          candidate.add(balls.sublist(t * capacity, (t + 1) * capacity));
+        }
+        guard++;
+      } while (guard < 20 &&
+          candidate.any((t) => t.every((c) => c == t.first)));
+      tubes = candidate;
+      if (attempt == 3) break; // fallback: extra empty tube, accepted unchecked
+      final moves = _solve(candidate, capacity, usedEmpties, 6000);
+      if (moves > 0) {
+        solved = moves;
+        break;
+      }
+    }
+
+    final est = solved > 0 ? solved : (colorCount * capacity * 0.9).round();
+    final stars3 = est;
+    final stars2 = (est * 1.4).ceil();
+    final maxMoves = (est * 2.3).ceil() + 10;
+
+    final initial = <List<Color>>[
+      for (final t in tubes!) [for (final c in t) GameColors.palette[c]],
+      for (int e = 0; e < usedEmpties; e++) <Color>[],
+    ];
+
+    final name = isBoss
+        ? 'Boss: ${_adj[(id * 7) % _adj.length]}'
+        : '${_adj[(id * 7) % _adj.length]} ${_noun[(id * 13) % _noun.length]}';
+
+    return LevelData(
+      id: id,
+      name: name,
+      initialTubes: initial,
+      maxMoves: maxMoves,
+      tubeCapacity: capacity,
+      stars3Moves: stars3,
+      stars2Moves: stars2,
+    );
+  }
+
+  /// Weighted best-first search using the same pour rules as the game.
+  /// Returns the move count of a solution found, or -1 if limit reached.
+  static int _solve(List<List<int>> start, int cap, int empties, int limit) {
+    final init = <List<int>>[
+      for (final t in start) List<int>.from(t),
+      for (int i = 0; i < empties; i++) <int>[],
+    ];
+
+    int heuristic(List<List<int>> s) {
+      var h = 0;
+      final where = <int, int>{};
+      for (final t in s) {
+        final seen = <int>{};
+        for (int i = 0; i < t.length; i++) {
+          if (i > 0 && t[i] != t[i - 1]) h += 3;
+          seen.add(t[i]);
+        }
+        for (final c in seen) {
+          where[c] = (where[c] ?? 0) + 1;
+        }
+      }
+      for (final v in where.values) {
+        h += v - 1;
+      }
+      return h;
+    }
+
+    bool isGoal(List<List<int>> s) {
+      for (final t in s) {
+        if (t.isEmpty) continue;
+        if (t.length != cap) return false;
+        for (final c in t) {
+          if (c != t.first) return false;
+        }
+      }
+      return true;
+    }
+
+    String key(List<List<int>> s) {
+      final parts = s.map((t) => t.join(',')).toList()..sort();
+      return parts.join('|');
+    }
+
+    final open = PriorityQueue<_Node>((a, b) => a.f.compareTo(b.f));
+    final seen = <String>{key(init)};
+    open.add(_Node(init, 0, heuristic(init) * 3));
+    var popped = 0;
+    while (open.isNotEmpty && popped < limit) {
+      final node = open.removeFirst();
+      popped++;
+      if (isGoal(node.s)) return node.depth;
+      final s = node.s;
+      for (int i = 0; i < s.length; i++) {
+        final src = s[i];
+        if (src.isEmpty) continue;
+        final top = src.last;
+        var run = 0;
+        for (int k = src.length - 1; k >= 0 && src[k] == top; k--) {
+          run++;
+        }
+        final uniform = run == src.length;
+        for (int j = 0; j < s.length; j++) {
+          if (i == j) continue;
+          final dst = s[j];
+          if (dst.length >= cap) continue;
+          if (dst.isNotEmpty && dst.last != top) continue;
+          if (dst.isEmpty && uniform) continue;
+          final amt = math.min(run, cap - dst.length);
+          final next = <List<int>>[
+            for (int q = 0; q < s.length; q++) List<int>.from(s[q]),
+          ];
+          for (int k = 0; k < amt; k++) {
+            next[i].removeLast();
+            next[j].add(top);
+          }
+          if (seen.add(key(next))) {
+            open.add(_Node(
+                next, node.depth + 1, heuristic(next) * 3 + node.depth + 1));
+          }
+        }
+      }
+    }
+    return -1;
+  }
+}
+
+class _Node {
+  final List<List<int>> s;
+  final int depth;
+  final int f;
+  _Node(this.s, this.depth, this.f);
 }

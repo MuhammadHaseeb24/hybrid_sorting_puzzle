@@ -1,15 +1,19 @@
+import 'dart:math' as math;
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:confetti/confetti.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/game_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/haptics.dart';
 import '../utils/responsive.dart';
-import '../widgets/tube_widget.dart';
-import '../widgets/booster_button.dart';
+import '../utils/world_theme.dart';
 import '../widgets/ad_dialog.dart';
-import 'level_select_screen.dart';
+import '../widgets/animated_backdrop.dart';
+import '../widgets/booster_button.dart';
+import '../widgets/jelly_button.dart';
+import '../widgets/tube_board.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -19,88 +23,87 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  late ConfettiController _confettiController;
-
-  @override
-  void initState() {
-    super.initState();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
-  }
+  late final ConfettiController _confetti =
+      ConfettiController(duration: const Duration(seconds: 3));
+  bool _celebrated = false;
 
   @override
   void dispose() {
-    _confettiController.dispose();
+    _confetti.dispose();
     super.dispose();
   }
 
-  void _showAdDialog({
-    required String title,
-    required String reward,
-    required VoidCallback onComplete,
-  }) {
+  void _showAd(BuildContext context, String title, String reward,
+      VoidCallback onDone) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AdDialog(
-        title: title,
-        rewardText: reward,
-        onComplete: onComplete,
-      ),
+      builder: (_) => AdDialog(title: title, rewardText: reward, onComplete: onDone),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final r = R(context);
-
     return Consumer<GameProvider>(
       builder: (context, game, _) {
-        if (game.status == GameStatus.won) {
+        final theme = WorldTheme.forLevel(game.currentLevel.id);
+
+        if (game.status == GameStatus.won && !_celebrated) {
+          _celebrated = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _confettiController.play();
+            if (mounted) _confetti.play();
           });
+        } else if (game.status != GameStatus.won) {
+          _celebrated = false;
         }
 
         return Scaffold(
-          body: Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(gradient: AppTheme.mainGradient),
+          body: AnimatedBackdrop(
+            theme: theme,
             child: Stack(
               children: [
                 SafeArea(
                   child: Column(
                     children: [
-                      _buildTopBar(context, game, r),
-                      SizedBox(height: r.sp(4)),
-                      _buildInfoBar(game, r),
-                      Expanded(child: Center(child: _buildTubesBoard(game, r))),
-                      _buildBoosters(game, r),
-                      SizedBox(height: r.sp(6)),
-                      _buildBottomActions(context, game, r),
-                      SizedBox(height: r.sp(10)),
+                      _topBar(context, game, theme, r),
+                      _movesBar(game, theme, r),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: r.isTablet ? 24 : 6),
+                          child: TubeBoard(game: game, theme: theme),
+                        ),
+                      ),
+                      _boosters(context, game, r),
+                      SizedBox(height: r.isSmall ? 6 : 14),
                     ],
                   ),
                 ),
                 Align(
                   alignment: Alignment.topCenter,
                   child: ConfettiWidget(
-                    confettiController: _confettiController,
+                    confettiController: _confetti,
                     blastDirectionality: BlastDirectionality.explosive,
+                    emissionFrequency: 0.05,
+                    numberOfParticles: 28,
+                    gravity: 0.25,
                     shouldLoop: false,
                     colors: const [
-                      AppTheme.primary,
-                      AppTheme.secondary,
-                      AppTheme.accent,
-                      AppTheme.warning,
-                      Colors.white,
+                      Colors.red,
+                      Colors.blue,
+                      Colors.green,
+                      Colors.yellow,
+                      Colors.purple,
+                      Colors.orange,
+                      Colors.pink,
                     ],
-                    numberOfParticles: 35,
-                    gravity: 0.2,
                   ),
                 ),
-                if (game.status == GameStatus.won) _buildWinOverlay(context, game, r),
-                if (game.status == GameStatus.lost) _buildLoseOverlay(context, game, r),
+                if (game.status == GameStatus.won)
+                  _WinOverlay(game: game, theme: theme),
+                if (game.status == GameStatus.lost)
+                  _LoseOverlay(game: game, theme: theme),
               ],
             ),
           ),
@@ -109,28 +112,32 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context, GameProvider game, R r) {
+  // ------------------------------------------------------------------
+  Widget _topBar(
+      BuildContext context, GameProvider game, WorldTheme theme, R r) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: r.sp(4), vertical: r.sp(2)),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(Icons.arrow_back_ios_new_rounded, size: r.sp(20)),
-            color: AppTheme.textPrimary,
-          ),
+          _roundIcon(Icons.arrow_back_ios_new_rounded, () {
+            Navigator.pop(context);
+          }),
           Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Level ${game.currentLevel.id}',
+                  'LEVEL ${game.currentLevel.id}',
                   style: GoogleFonts.poppins(
-                    fontSize: r.sp(17),
-                    fontWeight: FontWeight.w600,
+                    fontSize: r.sp(20),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
                   ),
                 ),
                 Text(
-                  game.currentLevel.name,
+                  '${theme.icon} ${game.currentLevel.name}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontSize: r.sp(11),
                     color: AppTheme.textSecondary,
@@ -139,432 +146,483 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           ),
-          IconButton(
-            onPressed: () => game.resetLevel(),
-            icon: Icon(Icons.refresh_rounded, size: r.sp(22)),
-            color: AppTheme.textPrimary,
-          ),
+          _roundIcon(Icons.refresh_rounded, game.resetLevel),
+          const SizedBox(width: 8),
+          _roundIcon(Icons.pause_rounded, () => _showPause(context)),
         ],
       ),
     );
   }
 
-  Widget _buildInfoBar(GameProvider game, R r) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: r.sp(16)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Flexible(
-            child: _infoChip(
-              icon: Icons.swap_horiz_rounded,
-              label: 'Moves',
-              value: '${game.moves}/${game.currentLevel.maxMoves}',
-              r: r,
-            ),
-          ),
-          SizedBox(width: r.sp(10)),
-          Flexible(
-            child: _infoChip(
-              icon: Icons.star_rounded,
-              label: '3★ Target',
-              value: '≤${game.currentLevel.stars3Moves}',
-              color: AppTheme.warning,
-              r: r,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoChip({
-    required IconData icon,
-    required String label,
-    required String value,
-    Color color = AppTheme.primary,
-    required R r,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: r.sp(12), vertical: r.sp(7)),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceLight.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: r.sp(16), color: color),
-          SizedBox(width: r.sp(6)),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    fontSize: r.sp(9.5),
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontSize: r.sp(13),
-                    fontWeight: FontWeight.w700,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTubesBoard(GameProvider game, R r) {
-    final tubes = game.tubes;
-    final tubeCount = tubes.length;
-
-    // Calculate best tube size based on available width and count
-    final availableWidth = r.width - r.sp(28);
-    final maxPerRow = r.isTablet ? 8 : (r.width > 400 ? 6 : 5);
-    final itemsInRow = tubeCount.clamp(1, maxPerRow);
-    final tubeWidth = (availableWidth / itemsInRow).clamp(r.tubeMinWidth, r.tubeMaxWidth);
-    final tubeHeight = tubeWidth * 3.05;
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: r.sp(10), vertical: r.sp(8)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: r.width),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          spacing: r.sp(7),
-          runSpacing: r.sp(14),
-          children: List.generate(tubes.length, (index) {
-            return TubeWidget(
-              tube: tubes[index],
-              isSelected: game.selectedTubeIndex == index,
-              onTap: () => game.selectTube(index),
-              width: tubeWidth,
-              height: tubeHeight,
-            )
-                .animate(delay: (25 * index).ms)
-                .fadeIn(duration: 220.ms)
-                .slideY(begin: 0.1, end: 0);
-          }),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBoosters(GameProvider game, R r) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: r.sp(10)),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            BoosterButton(
-              icon: Icons.undo_rounded,
-              label: 'Undo',
-              count: game.undoCount,
-              onTap: () {
-                if (game.undoCount > 0) {
-                  game.undo();
-                } else {
-                  _showAdDialog(
-                    title: 'Get More Undos',
-                    reward: 'Watch a short ad to get +3 Undos',
-                    onComplete: () => game.addUndoFromAd(),
-                  );
-                }
-              },
-              color: AppTheme.primary,
-            ),
-            SizedBox(width: r.sp(10)),
-            BoosterButton(
-              icon: Icons.lightbulb_outline_rounded,
-              label: 'Hint',
-              count: game.hintCount,
-              onTap: () async {
-                if (game.hintCount > 0) {
-                  await game.useHint();
-                } else {
-                  _showAdDialog(
-                    title: 'Get More Hints',
-                    reward: 'Watch a short ad to get +3 Hints',
-                    onComplete: () => game.addHintFromAd(),
-                  );
-                }
-              },
-              color: AppTheme.warning,
-            ),
-            SizedBox(width: r.sp(10)),
-            BoosterButton(
-              icon: Icons.add_box_outlined,
-              label: 'Extra',
-              count: game.extraTubeCount,
-              onTap: () {
-                if (game.extraTubeCount > 0) {
-                  game.addExtraTube();
-                } else {
-                  _showAdDialog(
-                    title: 'Get Extra Tubes',
-                    reward: 'Watch a short ad to get +2 Extra Tubes',
-                    onComplete: () => game.addExtraTubeFromAd(),
-                  );
-                }
-              },
-              color: AppTheme.accent,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomActions(BuildContext context, GameProvider game, R r) {
-    return TextButton.icon(
-      onPressed: () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LevelSelectScreen()),
-        );
+  Widget _roundIcon(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: () {
+        Haptics.tap();
+        onTap();
       },
-      icon: Icon(Icons.grid_view_rounded, size: r.sp(17)),
-      label: Text(
-        'Levels',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w500, fontSize: r.sp(13)),
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(0.1),
+          border: Border.all(color: Colors.white.withOpacity(0.25)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
-      style: TextButton.styleFrom(foregroundColor: AppTheme.textSecondary),
     );
   }
 
-  Widget _buildWinOverlay(BuildContext context, GameProvider game, R r) {
+  Widget _movesBar(GameProvider game, WorldTheme theme, R r) {
+    final lvl = game.currentLevel;
+    final maxM = math.max(1, lvl.maxMoves);
+    final ratio = math.min(1.0, game.moves / maxM);
+    final Color fill = game.moves <= lvl.stars3Moves
+        ? AppTheme.accent
+        : (game.moves <= lvl.stars2Moves ? AppTheme.warning : AppTheme.secondary);
+
     return Container(
-      color: Colors.black.withOpacity(0.78),
-      child: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(r.sp(20)),
-          child: Container(
-            width: double.infinity,
-            constraints: BoxConstraints(maxWidth: r.isTablet ? 420 : 340),
-            padding: EdgeInsets.all(r.sp(22)),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppTheme.surfaceLight, AppTheme.card],
-              ),
-              borderRadius: BorderRadius.circular(r.sp(24)),
-              border: Border.all(color: AppTheme.accent.withOpacity(0.4), width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.accent.withOpacity(0.25),
-                  blurRadius: 24,
-                  spreadRadius: 3,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.emoji_events_rounded, size: r.sp(54), color: AppTheme.warning)
-                    .animate()
-                    .scale(duration: 550.ms, curve: Curves.elasticOut),
-                SizedBox(height: r.sp(10)),
-                Text(
-                  'Level Complete!',
-                  style: GoogleFonts.poppins(
-                    fontSize: r.sp(22),
-                    fontWeight: FontWeight.w700,
+      margin: EdgeInsets.symmetric(horizontal: r.isTablet ? 32 : 16, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.28),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '${game.moves}',
+            style: GoogleFonts.poppins(
+                fontSize: 18, fontWeight: FontWeight.w800, color: fill),
+          ),
+          Text(
+            ' / $maxM',
+            style: GoogleFonts.poppins(
+                fontSize: 12, color: AppTheme.textSecondary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: LayoutBuilder(builder: (context, c) {
+              final w = c.maxWidth;
+              Widget star(int moves, int n) {
+                final lit = game.moves <= moves;
+                return Positioned(
+                  left: (moves / maxM).clamp(0.0, 1.0) * w - 9,
+                  top: -9,
+                  child: Column(
+                    children: [
+                      Icon(Icons.star_rounded,
+                          size: 18,
+                          color: lit
+                              ? AppTheme.gold
+                              : Colors.white.withOpacity(0.3)),
+                    ],
                   ),
-                ),
-                SizedBox(height: r.sp(4)),
-                Text(
-                  'Moves: ${game.moves}',
-                  style: GoogleFonts.poppins(
-                    fontSize: r.sp(14),
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                SizedBox(height: r.sp(12)),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(3, (i) {
-                    return Icon(
-                      Icons.star_rounded,
-                      size: r.sp(36),
-                      color: i < game.starsEarned
-                          ? AppTheme.warning
-                          : AppTheme.textSecondary.withOpacity(0.25),
-                    )
-                        .animate(delay: (160 * i).ms)
-                        .scale(begin: const Offset(0, 0), duration: 380.ms, curve: Curves.elasticOut);
-                  }),
-                ),
-                if (game.hasWeeklyBadge) ...[
-                  SizedBox(height: r.sp(10)),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: r.sp(10), vertical: r.sp(5)),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.goldGradient,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      '🥇 Top Player Badge Active',
-                      style: GoogleFonts.poppins(
-                        fontSize: r.sp(11),
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
-                SizedBox(height: r.sp(20)),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 10,
-                  runSpacing: 10,
+                );
+              }
+
+              return SizedBox(
+                height: 22,
+                child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    _overlayButton(
-                      label: 'Replay',
-                      icon: Icons.refresh_rounded,
-                      onTap: () => game.resetLevel(),
-                      outlined: true,
-                      r: r,
-                    ),
-                    if (game.hasNextLevel)
-                      _overlayButton(
-                        label: 'Next',
-                        icon: Icons.arrow_forward_rounded,
-                        onTap: () => game.loadLevel(game.nextLevelId),
-                        r: r,
-                      )
-                    else
-                      _overlayButton(
-                        label: 'Levels',
-                        icon: Icons.grid_view_rounded,
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const LevelSelectScreen()),
-                          );
-                        },
-                        r: r,
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 8,
+                      height: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
+                    ),
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 250),
+                      left: 0,
+                      top: 8,
+                      height: 8,
+                      width: w * ratio,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: fill,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(color: fill.withOpacity(0.6), blurRadius: 6),
+                          ],
+                        ),
+                      ),
+                    ),
+                    star(lvl.stars3Moves, 3),
+                    star(lvl.stars2Moves, 2),
                   ],
                 ),
-              ],
-            ),
-          ).animate().fadeIn(duration: 280.ms).scale(
-                begin: const Offset(0.88, 0.88),
-                curve: Curves.easeOutBack,
-              ),
-        ),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLoseOverlay(BuildContext context, GameProvider game, R r) {
+  Widget _boosters(BuildContext context, GameProvider game, R r) {
+    final playing = game.status == GameStatus.playing;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        BoosterButton(
+          icon: Icons.undo_rounded,
+          label: 'Undo',
+          count: game.undoCount,
+          color: AppTheme.primary,
+          size: r.sp(56),
+          onTap: playing
+              ? () {
+                  if (game.undoCount <= 0) {
+                    _showAd(context, 'Get 3 Undos', 'Watch a short ad to get +3 Undos',
+                        game.addUndoFromAd);
+                  } else if (game.history.isNotEmpty) {
+                    game.undo();
+                  }
+                }
+              : null,
+        ),
+        BoosterButton(
+          icon: Icons.lightbulb_rounded,
+          label: 'Hint',
+          count: game.hintCount,
+          color: const Color(0xFFF59E0B),
+          size: r.sp(56),
+          onTap: playing
+              ? () {
+                  if (game.hintCount <= 0) {
+                    _showAd(context, 'Get 3 Hints', 'Watch a short ad to get +3 Hints',
+                        game.addHintFromAd);
+                  } else {
+                    game.useHint();
+                  }
+                }
+              : null,
+        ),
+        BoosterButton(
+          icon: Icons.add_box_rounded,
+          label: 'Tube',
+          count: game.extraTubeCount,
+          color: AppTheme.success,
+          size: r.sp(56),
+          onTap: playing
+              ? () {
+                  if (game.extraTubeCount <= 0) {
+                    _showAd(context, 'Get 2 Extra Tubes',
+                        'Watch a short ad to get +2 Extra Tubes',
+                        game.addExtraTubeFromAd);
+                  } else {
+                    game.addExtraTube();
+                  }
+                }
+              : null,
+        ),
+      ],
+    );
+  }
+
+  void _showPause(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Consumer<GameProvider>(
+          builder: (ctx, game, _) {
+            Widget tile(IconData i, String t, bool v, ValueChanged<bool> cb) {
+              return SwitchListTile(
+                secondary: Icon(i, color: AppTheme.accent),
+                title: Text(t, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                value: v,
+                onChanged: cb,
+              );
+            }
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              decoration: BoxDecoration(
+                color: AppTheme.card,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('PAUSED',
+                        style: GoogleFonts.poppins(
+                            fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 3)),
+                    const SizedBox(height: 6),
+                    tile(Icons.volume_up_rounded, 'Sound Effects', game.soundEnabled,
+                        game.setSound),
+                    tile(Icons.music_note_rounded, 'Music', game.musicEnabled,
+                        game.setMusic),
+                    tile(Icons.vibration_rounded, 'Vibration', game.hapticsEnabled,
+                        game.setHaptics),
+                    const SizedBox(height: 10),
+                    JellyButton(
+                      label: 'RESUME',
+                      icon: Icons.play_arrow_rounded,
+                      width: double.infinity,
+                      height: 52,
+                      onTap: () => Navigator.pop(ctx),
+                    ),
+                    const SizedBox(height: 12),
+                    JellyButton(
+                      label: 'LEVEL MAP',
+                      icon: Icons.map_rounded,
+                      width: double.infinity,
+                      height: 48,
+                      fontSize: 14,
+                      colors: const [Color(0xFF8A94B8), Color(0xFF5B6585)],
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+class _WinOverlay extends StatefulWidget {
+  final GameProvider game;
+  final WorldTheme theme;
+  const _WinOverlay({required this.game, required this.theme});
+
+  @override
+  State<_WinOverlay> createState() => _WinOverlayState();
+}
+
+class _WinOverlayState extends State<_WinOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    final n = widget.game.starsEarned;
+    for (int i = 0; i < n; i++) {
+      Future.delayed(Duration(milliseconds: 450 + i * 300), () {
+        if (!mounted) return;
+        widget.game.sound.playStar();
+        Haptics.light();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final game = widget.game;
+    final theme = widget.theme;
     return Container(
-      color: Colors.black.withOpacity(0.78),
+      color: Colors.black.withOpacity(0.65),
       child: Center(
         child: Container(
-          margin: EdgeInsets.all(r.sp(24)),
-          width: double.infinity,
-          constraints: BoxConstraints(maxWidth: r.isTablet ? 400 : 320),
-          padding: EdgeInsets.all(r.sp(22)),
+          margin: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
           decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(r.sp(24)),
-            border: Border.all(color: AppTheme.secondary.withOpacity(0.4), width: 2),
+            borderRadius: BorderRadius.circular(30),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color.lerp(theme.primary, Colors.white, 0.1)!.withOpacity(0.95),
+                AppTheme.card,
+              ],
+            ),
+            border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: theme.primary.withOpacity(0.6), blurRadius: 40),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.sentiment_dissatisfied_rounded, size: r.sp(54), color: AppTheme.secondary),
-              SizedBox(height: r.sp(10)),
-              Text(
-                game.loseReason == 'stuck' ? 'No Moves Left!' : 'Out of Moves!',
-                style: GoogleFonts.poppins(
-                  fontSize: r.sp(20),
-                  fontWeight: FontWeight.w700,
+              ShaderMask(
+                shaderCallback: (b) => AppTheme.goldGradient.createShader(b),
+                child: Text(
+                  'LEVEL COMPLETE!',
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                  ),
                 ),
               ),
-              SizedBox(height: r.sp(5)),
-              Text(
-                game.loseReason == 'stuck'
-                    ? 'No moves, undos or extra tubes left. Restart the level.'
-                    : 'Try again with better strategy',
-                style: GoogleFonts.poppins(
-                  fontSize: r.sp(13),
-                  color: AppTheme.textSecondary,
-                ),
-                textAlign: TextAlign.center,
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(3, (i) {
+                  final earned = i < game.starsEarned;
+                  final size = i == 1 ? 74.0 : 56.0;
+                  final star = Icon(
+                    earned ? Icons.star_rounded : Icons.star_outline_rounded,
+                    size: size,
+                    color: earned ? AppTheme.gold : Colors.white.withOpacity(0.25),
+                  );
+                  if (!earned) return star;
+                  return star
+                      .animate(delay: (450 + i * 300).ms)
+                      .scale(
+                        begin: const Offset(0, 0),
+                        end: const Offset(1, 1),
+                        duration: 500.ms,
+                        curve: Curves.elasticOut,
+                      )
+                      .rotate(begin: -0.25, end: 0, duration: 500.ms);
+                }),
               ),
-              SizedBox(height: r.sp(20)),
-              _overlayButton(
-                label: 'Try Again',
-                icon: Icons.refresh_rounded,
-                onTap: () => game.resetLevel(),
-                r: r,
+              const SizedBox(height: 8),
+              Text(
+                '${game.moves} moves',
+                style: GoogleFonts.poppins(
+                    fontSize: 15, color: AppTheme.textSecondary),
+              ),
+              if (game.hasWeeklyBadge)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('🥇 Top Player badge active',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, color: AppTheme.gold)),
+                ),
+              const SizedBox(height: 20),
+              if (game.hasNextLevel)
+                JellyButton(
+                  label: 'NEXT LEVEL',
+                  icon: Icons.arrow_forward_rounded,
+                  width: double.infinity,
+                  height: 56,
+                  colors: const [Color(0xFF34F5B0), Color(0xFF00C27A)],
+                  onTap: () => game.loadLevel(game.nextLevelId),
+                )
+              else
+                Text('🎉 You finished all levels!',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: JellyButton(
+                      label: 'REPLAY',
+                      icon: Icons.refresh_rounded,
+                      height: 46,
+                      fontSize: 13,
+                      colors: const [Color(0xFFFFC857), Color(0xFFF59E0B)],
+                      onTap: game.resetLevel,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: JellyButton(
+                      label: 'MAP',
+                      icon: Icons.map_rounded,
+                      height: 46,
+                      fontSize: 13,
+                      colors: const [Color(0xFF8A94B8), Color(0xFF5B6585)],
+                      onTap: () => Navigator.pop(context),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ).animate().fadeIn().scale(begin: const Offset(0.88, 0.88)),
-      ),
+        ),
+      ).animate().fadeIn(duration: 250.ms).scale(
+            begin: const Offset(0.85, 0.85),
+            curve: Curves.easeOutBack,
+            duration: 400.ms,
+          ),
     );
   }
+}
 
-  Widget _overlayButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-    required R r,
-    bool outlined = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: r.sp(20), vertical: r.sp(11)),
-        decoration: BoxDecoration(
-          gradient: outlined ? null : AppTheme.buttonGradient,
-          color: outlined ? Colors.transparent : null,
-          borderRadius: BorderRadius.circular(14),
-          border: outlined
-              ? Border.all(color: AppTheme.primary.withOpacity(0.5), width: 1.5)
-              : null,
-          boxShadow: outlined
-              ? null
-              : [
-                  BoxShadow(
-                    color: AppTheme.primary.withOpacity(0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: r.sp(18)),
-            SizedBox(width: r.sp(6)),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: r.sp(14),
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+class _LoseOverlay extends StatelessWidget {
+  final GameProvider game;
+  final WorldTheme theme;
+  const _LoseOverlay({required this.game, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final byMoves = game.loseReason == 'moves';
+    return Container(
+      color: Colors.black.withOpacity(0.7),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppTheme.secondary.withOpacity(0.6)),
+            boxShadow: [
+              BoxShadow(color: AppTheme.secondary.withOpacity(0.35), blurRadius: 30),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(byMoves ? '⏱️' : '🧊', style: const TextStyle(fontSize: 52)),
+              const SizedBox(height: 8),
+              Text(
+                byMoves ? 'OUT OF MOVES' : 'NO MOVES LEFT',
+                style: GoogleFonts.poppins(
+                    fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1),
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                byMoves
+                    ? 'Try fewer, smarter pours!'
+                    : 'Every tube is blocked. Try again!',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 13, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              JellyButton(
+                label: 'TRY AGAIN',
+                icon: Icons.refresh_rounded,
+                width: double.infinity,
+                height: 54,
+                colors: const [Color(0xFFFF8A80), Color(0xFFE53935)],
+                onTap: game.resetLevel,
+              ),
+              const SizedBox(height: 12),
+              JellyButton(
+                label: 'LEVEL MAP',
+                icon: Icons.map_rounded,
+                width: double.infinity,
+                height: 46,
+                fontSize: 13,
+                colors: const [Color(0xFF8A94B8), Color(0xFF5B6585)],
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
         ),
-      ),
+      ).animate().fadeIn(duration: 250.ms).shake(hz: 3, duration: 400.ms),
     );
   }
 }

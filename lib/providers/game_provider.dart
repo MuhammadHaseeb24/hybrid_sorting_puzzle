@@ -1,11 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/level_data.dart';
 import '../models/achievement.dart';
 import '../services/progress_service.dart';
 import '../services/sound_service.dart';
+import '../utils/haptics.dart';
 
 enum GameStatus { playing, won, lost }
+
+/// A pour that is currently being animated by the board. The tubes are only
+/// mutated when [GameProvider.finishPour] is called at the end of the animation.
+class PourEvent {
+  final int id;
+  final int from;
+  final int to;
+  final Color color;
+  final int amount;
+  const PourEvent({
+    required this.id,
+    required this.from,
+    required this.to,
+    required this.color,
+    required this.amount,
+  });
+}
 
 class GameProvider extends ChangeNotifier {
   late LevelData currentLevel;
@@ -18,6 +35,15 @@ class GameProvider extends ChangeNotifier {
   bool isAnimating = false;
   bool usedHintThisLevel = false;
   String loseReason = ''; // 'moves' or 'stuck'
+
+  // Pour animation + effects
+  PourEvent? pourEvent;
+  int _pourSeq = 0;
+  int hintFrom = -1;
+  int hintTo = -1;
+  int completedSeq = 0;
+  int completedTube = -1;
+  Color completedColor = Colors.white;
 
   // Boosters
   int undoCount = 5;
@@ -39,6 +65,7 @@ class GameProvider extends ChangeNotifier {
   // Stats
   int gamesPlayed = 0;
   int perfectLevels = 0;
+  int noHintLevels = 0;
 
   final SoundService sound = SoundService();
   bool _initialized = false;
@@ -58,6 +85,8 @@ class GameProvider extends ChangeNotifier {
     hapticsEnabled = await ProgressService.getHapticsEnabled();
     gamesPlayed = await ProgressService.getGamesPlayed();
     perfectLevels = await ProgressService.getPerfectLevels();
+    noHintLevels = await ProgressService.getNoHintLevels();
+    Haptics.enabled = hapticsEnabled;
 
     await sound.init();
     sound.setSoundEnabled(soundEnabled);
@@ -80,26 +109,34 @@ class GameProvider extends ChangeNotifier {
     history.clear();
     starsEarned = 0;
     isAnimating = false;
+    pourEvent = null;
+    hintFrom = -1;
+    hintTo = -1;
     usedHintThisLevel = false;
     loseReason = '';
     notifyListeners();
   }
 
+  void _clearHint() {
+    hintFrom = -1;
+    hintTo = -1;
+  }
+
   void selectTube(int index) {
     if (status != GameStatus.playing || isAnimating) return;
-
-    if (hapticsEnabled) {
-      HapticFeedback.selectionClick();
-    }
+    if (index < 0 || index >= tubes.length) return;
+    _clearHint();
+    Haptics.tap();
 
     if (selectedTubeIndex == -1) {
       if (!tubes[index].isEmpty) {
         selectedTubeIndex = index;
         sound.playSelect();
-        notifyListeners();
       }
+      notifyListeners();
     } else if (selectedTubeIndex == index) {
       selectedTubeIndex = -1;
+      sound.playClick();
       notifyListeners();
     } else {
       _tryPour(selectedTubeIndex, index);
@@ -117,37 +154,63 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    _saveHistory();
-
-    final amount = source.pourAmountTo(dest);
-    final color = source.topColor!;
-
-    for (int i = 0; i < amount; i++) {
-      source.colors.removeLast();
-      dest.colors.add(color);
-    }
-
-    moves++;
+    // Start the animation; tubes change in finishPour().
+    pourEvent = PourEvent(
+      id: ++_pourSeq,
+      from: from,
+      to: to,
+      color: source.topColor!,
+      amount: source.pourAmountTo(dest),
+    );
+    isAnimating = true;
     selectedTubeIndex = -1;
     sound.playPour();
+    Haptics.light();
+    notifyListeners();
+  }
 
-    if (hapticsEnabled) {
-      HapticFeedback.lightImpact();
+  /// Called by the board when the pour animation ends.
+  void finishPour() {
+    final e = pourEvent;
+    if (e == null) return;
+    final source = tubes[e.from];
+    final dest = tubes[e.to];
+
+    _saveHistory();
+    for (int i = 0; i < e.amount; i++) {
+      source.colors.removeLast();
+      dest.colors.add(e.color);
+    }
+    moves++;
+    pourEvent = null;
+    isAnimating = false;
+
+    final tubeDone = !dest.isEmpty && dest.isSorted;
+    if (tubeDone) {
+      completedTube = e.to;
+      completedColor = e.color;
+      completedSeq++;
+      Haptics.medium();
     }
 
     if (_checkWin()) {
       status = GameStatus.won;
       _calculateStars();
       sound.playWin();
+      Haptics.win();
       _onLevelComplete();
     } else if (moves >= currentLevel.maxMoves) {
       status = GameStatus.lost;
       loseReason = 'moves';
       sound.playLose();
+      Haptics.lose();
     } else if (_isStuck()) {
       status = GameStatus.lost;
       loseReason = 'stuck';
       sound.playLose();
+      Haptics.lose();
+    } else if (tubeDone) {
+      sound.playStar();
     }
 
     notifyListeners();
@@ -193,15 +256,19 @@ class GameProvider extends ChangeNotifier {
     await ProgressService.addMoves(moves);
 
     await ProgressService.saveStars(currentLevel.id, starsEarned);
-    levelStars[currentLevel.id] = starsEarned > (levelStars[currentLevel.id] ?? 0)
-        ? starsEarned
-        : levelStars[currentLevel.id] ?? 0;
+    final prev = levelStars[currentLevel.id] ?? 0;
+    levelStars[currentLevel.id] = starsEarned > prev ? starsEarned : prev;
     totalStars = levelStars.values.fold(0, (a, b) => a + b);
 
     if (starsEarned == 3) {
       await ProgressService.incrementPerfectLevels();
       perfectLevels++;
       sound.playStar();
+    }
+
+    if (!usedHintThisLevel) {
+      await ProgressService.incrementNoHintLevels();
+      noHintLevels++;
     }
 
     final nextId = currentLevel.id + 1;
@@ -232,6 +299,10 @@ class GameProvider extends ChangeNotifier {
       'level_10': completedLevels >= 10,
       'level_20': completedLevels >= 20,
       'level_30': completedLevels >= 30,
+      'level_50': completedLevels >= 50,
+      'level_100': completedLevels >= 100,
+      'level_200': completedLevels >= 200,
+      'level_300': completedLevels >= 300,
       'three_star_1': threeStarCount >= 1,
       'three_star_5': threeStarCount >= 5,
       'three_star_15': threeStarCount >= 15,
@@ -239,6 +310,7 @@ class GameProvider extends ChangeNotifier {
       'total_stars_30': totalStars >= 30,
       'total_stars_60': totalStars >= 60,
       'games_20': gamesPlayed >= 20,
+      'no_hint_5': noHintLevels >= 5,
       'speed_demon': moves <= 10 && starsEarned >= 1,
     };
 
@@ -256,39 +328,69 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> undo() async {
-    if (undoCount <= 0 || history.isEmpty || status != GameStatus.playing) {
+    if (undoCount <= 0 ||
+        history.isEmpty ||
+        status != GameStatus.playing ||
+        isAnimating) {
       return;
     }
     tubes = history.removeLast();
-    moves = (moves - 1).clamp(0, 999);
+    moves = moves > 0 ? moves - 1 : 0;
     selectedTubeIndex = -1;
+    _clearHint();
     undoCount--;
     await ProgressService.setUndoCount(undoCount);
     sound.playClick();
-    if (hapticsEnabled) HapticFeedback.mediumImpact();
+    Haptics.medium();
     notifyListeners();
   }
 
-  Future<bool> useHint() async {
-    if (status != GameStatus.playing) return false;
-
-    if (hintCount > 0) {
-      for (int i = 0; i < tubes.length; i++) {
-        for (int j = 0; j < tubes.length; j++) {
-          if (i != j && tubes[i].canPourTo(tubes[j])) {
-            selectedTubeIndex = i;
-            hintCount--;
-            usedHintThisLevel = true;
-            await ProgressService.setHintCount(hintCount);
-            sound.playClick();
-            notifyListeners();
-            return true;
-          }
+  /// Picks a useful move: prefers merging onto the same colour, finishing
+  /// tubes, and avoids pointless "uniform tube -> empty tube" moves.
+  List<int>? _bestMove() {
+    int bestScore = -1 << 30;
+    List<int>? best;
+    List<int>? anyLegal;
+    for (int i = 0; i < tubes.length; i++) {
+      for (int j = 0; j < tubes.length; j++) {
+        if (i == j || !tubes[i].canPourTo(tubes[j])) continue;
+        anyLegal ??= [i, j];
+        final src = tubes[i];
+        final dst = tubes[j];
+        final uniform = src.colors.every((c) => c == src.colors.first);
+        if (uniform && dst.isEmpty) continue;
+        final amt = src.pourAmountTo(dst);
+        var score = amt;
+        if (!dst.isEmpty) score += 10;
+        if (amt == src.colors.length) score += 5;
+        if (dst.colors.length + amt == dst.capacity &&
+            dst.colors.every((c) => c == dst.colors.first)) {
+          score += 8;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          best = [i, j];
         }
       }
-      return false;
     }
-    return false;
+    return best ?? anyLegal;
+  }
+
+  Future<bool> useHint() async {
+    if (status != GameStatus.playing || isAnimating) return false;
+    if (hintCount <= 0) return false;
+    final move = _bestMove();
+    if (move == null) return false;
+    selectedTubeIndex = -1;
+    hintFrom = move[0];
+    hintTo = move[1];
+    hintCount--;
+    usedHintThisLevel = true;
+    await ProgressService.setHintCount(hintCount);
+    sound.playClick();
+    Haptics.light();
+    notifyListeners();
+    return true;
   }
 
   Future<void> addHintFromAd() async {
@@ -299,12 +401,15 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> addExtraTube() async {
-    if (extraTubeCount <= 0 || status != GameStatus.playing) return;
+    if (extraTubeCount <= 0 || status != GameStatus.playing || isAnimating) {
+      return;
+    }
     tubes.add(Tube(colors: [], capacity: currentLevel.tubeCapacity));
     extraTubeCount--;
+    _clearHint();
     await ProgressService.setExtraTubeCount(extraTubeCount);
     sound.playClick();
-    if (hapticsEnabled) HapticFeedback.mediumImpact();
+    Haptics.medium();
     notifyListeners();
   }
 
@@ -322,8 +427,7 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Restart the current level from the very beginning:
-  /// original tubes (extra tubes removed), moves = 0, history cleared.
+  /// Restart the current level from the very beginning.
   void resetLevel() {
     sound.playClick();
     loadLevel(currentLevel.id);
@@ -351,7 +455,9 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> setHaptics(bool value) async {
     hapticsEnabled = value;
+    Haptics.enabled = value;
     await ProgressService.setHapticsEnabled(value);
+    if (value) Haptics.medium();
     notifyListeners();
   }
 
@@ -367,6 +473,7 @@ class GameProvider extends ChangeNotifier {
     extraTubeCount = 2;
     gamesPlayed = 0;
     perfectLevels = 0;
+    noHintLevels = 0;
     notifyListeners();
   }
 }

@@ -146,6 +146,8 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           ),
+          _coinChip(game.coins),
+          const SizedBox(width: 8),
           _roundIcon(Icons.refresh_rounded, game.resetLevel),
           const SizedBox(width: 8),
           _roundIcon(Icons.pause_rounded, () => _showPause(context)),
@@ -173,98 +175,156 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _movesBar(GameProvider game, WorldTheme theme, R r) {
-    final lvl = game.currentLevel;
-    final maxM = math.max(1, lvl.maxMoves);
-    final ratio = math.min(1.0, game.moves / maxM);
-    final Color fill = game.moves <= lvl.stars3Moves
-        ? AppTheme.accent
-        : (game.moves <= lvl.stars2Moves ? AppTheme.warning : AppTheme.secondary);
-
+  Widget _coinChip(int coins) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: r.isTablet ? 32 : 16, vertical: 6),
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.28),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: AppTheme.gold.withOpacity(0.5)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          const Icon(Icons.monetization_on_rounded,
+              size: 18, color: AppTheme.gold),
+          const SizedBox(width: 4),
           Text(
-            '${game.moves}',
+            '$coins',
             style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.w800, color: fill),
-          ),
-          Text(
-            ' / $maxM',
-            style: GoogleFonts.poppins(
-                fontSize: 12, color: AppTheme.textSecondary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: LayoutBuilder(builder: (context, c) {
-              final w = c.maxWidth;
-              Widget star(int moves, int n) {
-                final lit = game.moves <= moves;
-                return Positioned(
-                  left: (moves / maxM).clamp(0.0, 1.0) * w - 9,
-                  top: -9,
-                  child: Column(
-                    children: [
-                      Icon(Icons.star_rounded,
-                          size: 18,
-                          color: lit
-                              ? AppTheme.gold
-                              : Colors.white.withOpacity(0.3)),
-                    ],
-                  ),
-                );
-              }
-
-              return SizedBox(
-                height: 22,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: 8,
-                      height: 8,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 250),
-                      left: 0,
-                      top: 8,
-                      height: 8,
-                      width: w * ratio,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: fill,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: [
-                            BoxShadow(color: fill.withOpacity(0.6), blurRadius: 6),
-                          ],
-                        ),
-                      ),
-                    ),
-                    star(lvl.stars3Moves, 3),
-                    star(lvl.stars2Moves, 2),
-                  ],
-                ),
-              );
-            }),
+                fontSize: 13, fontWeight: FontWeight.w800),
           ),
         ],
       ),
     );
+  }
+
+  /// Moves + live star rating: up to par+2 moves = 3 stars, then 2, then 1.
+  Widget _movesBar(GameProvider game, WorldTheme theme, R r) {
+    final lvl = game.currentLevel;
+    final s3 = lvl.stars3Moves;
+    final s2 = lvl.stars2Moves;
+    final stars = game.starsNow;
+    final Color tone = stars == 3
+        ? AppTheme.accent
+        : (stars == 2 ? AppTheme.warning : AppTheme.secondary);
+    final String info = stars == 3
+        ? 'Keep 3★ for ${s3 - game.moves} more moves'
+        : (stars == 2
+            ? 'Keep 2★ for ${s2 - game.moves} more moves'
+            : 'Just finish the level for 1★');
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: r.isTablet ? 32 : 14, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.10),
+            Colors.black.withOpacity(0.28),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tone.withOpacity(0.35)),
+        boxShadow: [
+          BoxShadow(color: tone.withOpacity(0.15), blurRadius: 12),
+        ],
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'MOVES',
+                style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textSecondary),
+              ),
+              Text(
+                '${game.moves}',
+                style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    height: 1.0,
+                    fontWeight: FontWeight.w900,
+                    color: tone),
+              ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              final lit = i < stars;
+              return AnimatedScale(
+                scale: lit ? 1.0 : 0.78,
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutBack,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: Icon(
+                    Icons.star_rounded,
+                    key: ValueKey(lit),
+                    size: 32,
+                    color: lit ? AppTheme.gold : Colors.white.withOpacity(0.22),
+                    shadows: lit
+                        ? [Shadow(color: AppTheme.gold.withOpacity(0.7), blurRadius: 10)]
+                        : null,
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              info,
+              textAlign: TextAlign.right,
+              maxLines: 2,
+              style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  height: 1.25,
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toast(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(milliseconds: 1500),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppTheme.surfaceLight,
+        content: Text(msg, style: GoogleFonts.poppins()),
+      ));
+  }
+
+  void _buyTube(BuildContext context, GameProvider game) {
+    switch (game.buyExtraTube()) {
+      case TubeBuyResult.ok:
+      case TubeBuyResult.busy:
+        break;
+      case TubeBuyResult.maxed:
+        Haptics.light();
+        _toast(context, 'You can add only 2 extra tubes per game');
+        break;
+      case TubeBuyResult.noCoins:
+        Haptics.light();
+        _showAd(context, 'Not enough coins',
+            'Watch a short ad to get +50 coins', () => game.addCoinsFromAd(50));
+        break;
+    }
   }
 
   Widget _boosters(BuildContext context, GameProvider game, R r) {
@@ -281,8 +341,8 @@ class _GameScreenState extends State<GameScreen> {
           onTap: playing
               ? () {
                   if (game.undoCount <= 0) {
-                    _showAd(context, 'Get 3 Undos', 'Watch a short ad to get +3 Undos',
-                        game.addUndoFromAd);
+                    _showAd(context, 'Get 3 Undos',
+                        'Watch a short ad to get +3 Undos', game.addUndoFromAd);
                   } else if (game.history.isNotEmpty) {
                     game.undo();
                   }
@@ -298,8 +358,8 @@ class _GameScreenState extends State<GameScreen> {
           onTap: playing
               ? () {
                   if (game.hintCount <= 0) {
-                    _showAd(context, 'Get 3 Hints', 'Watch a short ad to get +3 Hints',
-                        game.addHintFromAd);
+                    _showAd(context, 'Get 3 Hints',
+                        'Watch a short ad to get +3 Hints', game.addHintFromAd);
                   } else {
                     game.useHint();
                   }
@@ -309,20 +369,13 @@ class _GameScreenState extends State<GameScreen> {
         BoosterButton(
           icon: Icons.add_box_rounded,
           label: 'Tube',
-          count: game.extraTubeCount,
+          count: 0,
+          badgeText:
+              '${GameProvider.maxExtraTubesPerLevel - game.extraTubesThisLevel}',
+          priceText: game.canAddMoreTubes ? '${game.extraTubePrice}' : 'MAX',
           color: AppTheme.success,
           size: r.sp(56),
-          onTap: playing
-              ? () {
-                  if (game.extraTubeCount <= 0) {
-                    _showAd(context, 'Get 2 Extra Tubes',
-                        'Watch a short ad to get +2 Extra Tubes',
-                        game.addExtraTubeFromAd);
-                  } else {
-                    game.addExtraTube();
-                  }
-                }
-              : null,
+          onTap: playing ? () => _buyTube(context, game) : null,
         ),
       ],
     );
@@ -497,10 +550,32 @@ class _WinOverlayState extends State<_WinOverlay> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${game.moves} moves',
+                '${game.moves} moves  •  par ${game.currentLevel.stars3Moves - 2}',
                 style: GoogleFonts.poppins(
                     fontSize: 15, color: AppTheme.textSecondary),
               ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.monetization_on_rounded,
+                      color: AppTheme.gold, size: 26),
+                  const SizedBox(width: 6),
+                  Text(
+                    '+${game.lastCoinsEarned}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.gold,
+                    ),
+                  ),
+                ],
+              )
+                  .animate(delay: 1000.ms)
+                  .fadeIn(duration: 300.ms)
+                  .slideY(begin: 0.4, end: 0)
+                  .then()
+                  .shimmer(duration: 900.ms),
               if (game.hasWeeklyBadge)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),

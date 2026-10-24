@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/level_data.dart';
 import '../models/achievement.dart';
@@ -6,6 +7,8 @@ import '../services/sound_service.dart';
 import '../utils/haptics.dart';
 
 enum GameStatus { playing, won, lost }
+
+enum TubeBuyResult { ok, maxed, noCoins, busy }
 
 /// A pour that is currently being animated by the board. The tubes are only
 /// mutated when [GameProvider.finishPour] is called at the end of the animation.
@@ -48,7 +51,21 @@ class GameProvider extends ChangeNotifier {
   // Boosters
   int undoCount = 5;
   int hintCount = 2;
-  int extraTubeCount = 2;
+  // Coins + extra tubes (bought with coins, max 2 per game)
+  int coins = ProgressService.startCoins;
+  int extraTubesThisLevel = 0;
+  int lastCoinsEarned = 0;
+  static const int maxExtraTubesPerLevel = 2;
+  static const List<int> extraTubePrices = [50, 100];
+
+  int get extraTubePrice =>
+      extraTubePrices[math.min(extraTubesThisLevel, extraTubePrices.length - 1)];
+  bool get canAddMoreTubes => extraTubesThisLevel < maxExtraTubesPerLevel;
+
+  /// Stars if the level were finished right now (3 up to par+2, then 2, then 1).
+  int get starsNow => moves <= currentLevel.stars3Moves
+      ? 3
+      : (moves <= currentLevel.stars2Moves ? 2 : 1);
 
   // Progress
   int unlockedLevel = 1;
@@ -77,7 +94,7 @@ class GameProvider extends ChangeNotifier {
     totalStars = await ProgressService.getTotalStars();
     hintCount = await ProgressService.getHintCount();
     undoCount = await ProgressService.getUndoCount();
-    extraTubeCount = await ProgressService.getExtraTubeCount();
+    coins = await ProgressService.getCoins();
     unlockedAchievements = await ProgressService.getUnlockedAchievements();
     hasWeeklyBadge = await ProgressService.hasActiveWeeklyBadge();
     soundEnabled = await ProgressService.getSoundEnabled();
@@ -113,6 +130,8 @@ class GameProvider extends ChangeNotifier {
     hintFrom = -1;
     hintTo = -1;
     usedHintThisLevel = false;
+    extraTubesThisLevel = 0;
+    lastCoinsEarned = 0;
     loseReason = '';
     notifyListeners();
   }
@@ -181,9 +200,11 @@ class GameProvider extends ChangeNotifier {
       source.colors.removeLast();
       dest.colors.add(e.color);
     }
+    final starsBefore = starsNow;
     moves++;
     pourEvent = null;
     isAnimating = false;
+    if (starsNow < starsBefore) Haptics.heavy(); // lost a star
 
     final tubeDone = !dest.isEmpty && dest.isSorted;
     if (tubeDone) {
@@ -226,11 +247,11 @@ class GameProvider extends ChangeNotifier {
     return false;
   }
 
-  /// Stuck = no legal move AND no extra tube AND no undo left.
+  /// Stuck = no legal move AND no undo left AND no more tubes can be added.
   bool _isStuck() {
     if (hasAnyMove) return false;
     final canUndo = undoCount > 0 && history.isNotEmpty;
-    return extraTubeCount <= 0 && !canUndo;
+    return !canAddMoreTubes && !canUndo;
   }
 
   bool _checkWin() {
@@ -251,6 +272,12 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> _onLevelComplete() async {
+    // coins (computed synchronously so the win dialog can show them)
+    final firstClear = !levelStars.containsKey(currentLevel.id);
+    lastCoinsEarned = firstClear ? 20 + 10 * starsEarned : 5 + 3 * starsEarned;
+    coins += lastCoinsEarned;
+    ProgressService.setCoins(coins);
+
     await ProgressService.incrementGamesPlayed();
     gamesPlayed++;
     await ProgressService.addMoves(moves);
@@ -400,23 +427,28 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addExtraTube() async {
-    if (extraTubeCount <= 0 || status != GameStatus.playing || isAnimating) {
-      return;
-    }
+  /// Buy one extra empty tube with coins (max 2 per game).
+  TubeBuyResult buyExtraTube() {
+    if (status != GameStatus.playing || isAnimating) return TubeBuyResult.busy;
+    if (!canAddMoreTubes) return TubeBuyResult.maxed;
+    final price = extraTubePrice;
+    if (coins < price) return TubeBuyResult.noCoins;
+    coins -= price;
+    extraTubesThisLevel++;
     tubes.add(Tube(colors: [], capacity: currentLevel.tubeCapacity));
-    extraTubeCount--;
     _clearHint();
-    await ProgressService.setExtraTubeCount(extraTubeCount);
+    ProgressService.setCoins(coins);
     sound.playClick();
     Haptics.medium();
     notifyListeners();
+    return TubeBuyResult.ok;
   }
 
-  Future<void> addExtraTubeFromAd() async {
-    extraTubeCount += 2;
-    await ProgressService.setExtraTubeCount(extraTubeCount);
-    sound.playClick();
+  Future<void> addCoinsFromAd([int amount = 50]) async {
+    coins += amount;
+    await ProgressService.setCoins(coins);
+    sound.playStar();
+    Haptics.light();
     notifyListeners();
   }
 
@@ -470,7 +502,8 @@ class GameProvider extends ChangeNotifier {
     hasWeeklyBadge = false;
     hintCount = 2;
     undoCount = 5;
-    extraTubeCount = 2;
+    coins = ProgressService.startCoins;
+    extraTubesThisLevel = 0;
     gamesPlayed = 0;
     perfectLevels = 0;
     noHintLevels = 0;

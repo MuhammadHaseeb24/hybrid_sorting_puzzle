@@ -13,6 +13,8 @@ class BoosterButton extends StatefulWidget {
   final Color color;
   final bool showAdIcon;
   final double size;
+  final String? badgeText;
+  final String? priceText;
 
   const BoosterButton({
     super.key,
@@ -23,6 +25,8 @@ class BoosterButton extends StatefulWidget {
     this.color = AppTheme.primary,
     this.showAdIcon = false,
     this.size = 58,
+    this.badgeText,
+    this.priceText,
   });
 
   @override
@@ -34,7 +38,8 @@ class _BoosterButtonState extends State<BoosterButton> {
 
   @override
   Widget build(BuildContext context) {
-    final needsAd = widget.count <= 0 || widget.showAdIcon;
+    final needsAd =
+        widget.badgeText == null && (widget.count <= 0 || widget.showAdIcon);
     final enabled = widget.onTap != null;
     final c = widget.color;
     final dark = HSLColor.fromColor(c)
@@ -113,7 +118,7 @@ class _BoosterButtonState extends State<BoosterButton> {
                             ? const Icon(Icons.play_arrow_rounded,
                                 size: 14, color: Colors.black)
                             : Text(
-                                '${widget.count}',
+                                widget.badgeText ?? '${widget.count}',
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -134,6 +139,35 @@ class _BoosterButtonState extends State<BoosterButton> {
                   color: AppTheme.textSecondary,
                 ),
               ),
+              if (widget.priceText != null) ...[
+                const SizedBox(height: 3),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppTheme.gold.withOpacity(0.5), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.monetization_on_rounded,
+                          size: 12, color: AppTheme.gold),
+                      const SizedBox(width: 3),
+                      Text(
+                        widget.priceText!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

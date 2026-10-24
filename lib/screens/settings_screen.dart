@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/achievement.dart';
 import '../providers/game_provider.dart';
+import 'achievements_screen.dart';
 import '../utils/app_theme.dart';
 import '../widgets/animated_backdrop.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  final bool embedded;
+  const SettingsScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
@@ -22,11 +25,14 @@ class SettingsScreen extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Row(
                   children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      color: AppTheme.textPrimary,
-                    ),
+                    if (!embedded)
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        color: AppTheme.textPrimary,
+                      )
+                    else
+                      const SizedBox(width: 48),
                     Expanded(
                       child: Text(
                         'Settings',
@@ -92,10 +98,10 @@ class SettingsScreen extends StatelessWidget {
                           ),
                           _divider(),
                           _infoTile(
-                            icon: Icons.add_box_outlined,
-                            title: 'Extra Tubes',
-                            value: '×${game.extraTubeCount}',
-                            color: AppTheme.accent,
+                            icon: Icons.monetization_on_rounded,
+                            title: 'Coins',
+                            value: '${game.coins}',
+                            color: AppTheme.gold,
                           ),
                         ]),
                         const SizedBox(height: 20),
@@ -120,6 +126,38 @@ class SettingsScreen extends StatelessWidget {
                             title: 'Games Played',
                             value: '${game.gamesPlayed}',
                             color: AppTheme.primary,
+                          ),
+                        ]),
+                        const SizedBox(height: 20),
+                        _sectionTitle('Awards'),
+                        _settingsCard([
+                          ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppTheme.gold.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.emoji_events_rounded,
+                                  color: AppTheme.gold, size: 22),
+                            ),
+                            title: Text(
+                              'Achievements',
+                              style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                            subtitle: Text(
+                              '${game.unlockedAchievements.length} / ${AchievementRepository.all.length} unlocked',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12, color: AppTheme.textSecondary),
+                            ),
+                            trailing: const Icon(Icons.chevron_right_rounded,
+                                color: AppTheme.textSecondary),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const AchievementsScreen()),
+                            ),
                           ),
                         ]),
                         const SizedBox(height: 20),
@@ -165,7 +203,7 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                'v1.0.0 • Hybrid Casual 2026',
+                                'v2.0.0 • 3D Liquid Sorting',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   color: AppTheme.textSecondary.withOpacity(0.5),

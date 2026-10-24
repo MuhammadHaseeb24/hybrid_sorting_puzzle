@@ -599,8 +599,34 @@ class LevelRepository {
 
   static LevelData getLevel(int id) {
     final safe = math.max(1, math.min(totalLevels, id));
-    if (safe <= _handmade.length) return _handmade[safe - 1];
-    return _cache.putIfAbsent(safe, () => _generate(safe));
+    return _cache.putIfAbsent(
+      safe,
+          () => safe <= _handmade.length
+          ? _withPar(_handmade[safe - 1])
+          : _generate(safe),
+    );
+  }
+
+  /// Hand-made levels also get solver-based star targets (par + 2 = 3 stars).
+  static LevelData _withPar(LevelData l) {
+    final ids = <Color, int>{};
+    int idx(Color c) => ids.putIfAbsent(c, () => ids.length);
+    final tubes = <List<int>>[
+      for (final t in l.initialTubes) [for (final c in t) idx(c)],
+    ];
+    final solved = _solve(tubes, l.tubeCapacity, 0, 8000);
+    final int par = solved > 0 ? solved : math.max<int>(1, l.stars3Moves - 2);
+    final stars3 = par + 2;
+    final int stars2 = stars3 + math.max<int>(3, (par * 0.4).ceil());
+    return LevelData(
+      id: l.id,
+      name: l.name,
+      initialTubes: l.initialTubes,
+      maxMoves: 999,
+      tubeCapacity: l.tubeCapacity,
+      stars3Moves: stars3,
+      stars2Moves: stars2,
+    );
   }
 
   static LevelData _generate(int id) {
@@ -650,10 +676,11 @@ class LevelRepository {
       }
     }
 
-    final est = solved > 0 ? solved : (colorCount * capacity * 0.9).round();
-    final stars3 = est;
-    final stars2 = (est * 1.4).ceil();
-    final maxMoves = (est * 2.3).ceil() + 10;
+    // par = moves of a good solution. 3 stars up to par + 2, then fewer stars.
+    final par = solved > 0 ? solved : (colorCount * capacity * 0.9).round();
+    final stars3 = par + 2;
+    final int stars2 = stars3 + math.max<int>(3, (par * 0.4).ceil());
+    const maxMoves = 999; // no hard move limit, only stars go down
 
     final initial = <List<Color>>[
       for (final t in tubes!) [for (final c in t) GameColors.palette[c]],

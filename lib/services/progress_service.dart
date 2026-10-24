@@ -17,6 +17,7 @@ class ProgressService {
   static const String _keyPerfectLevels = 'perfect_levels';
   static const String _keyTotalMoves = 'total_moves';
   static const String _keyNoHint = 'no_hint_levels';
+  static const String _keyCoins = 'coins';
 
   static Future<SharedPreferences> get _prefs async =>
       await SharedPreferences.getInstance();
@@ -206,6 +207,18 @@ class ProgressService {
     await p.setInt(_keyNoHint, current + 1);
   }
 
+  static const int startCoins = 100;
+
+  static Future<int> getCoins() async {
+    final p = await _prefs;
+    return p.getInt(_keyCoins) ?? startCoins;
+  }
+
+  static Future<void> setCoins(int value) async {
+    final p = await _prefs;
+    await p.setInt(_keyCoins, value);
+  }
+
   // Reset all
   static Future<void> resetProgress() async {
     final p = await _prefs;
@@ -220,6 +233,7 @@ class ProgressService {
     await p.remove(_keyNoHint);
     // Keep settings & boosters or reset boosters too
     await p.setInt(_keyHintCount, 2);
+    await p.setInt(_keyCoins, startCoins);
     await p.setInt(_keyUndoCount, 5);
     await p.setInt(_keyExtraTubeCount, 2);
   }

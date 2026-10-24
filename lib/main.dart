@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 import 'utils/app_theme.dart';
 
 void main() {
@@ -65,7 +65,7 @@ class _SortifyAppState extends State<SortifyApp> with WidgetsBindingObserver {
         title: 'Sortify - 3D Liquid Sorting',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
-        home: const HomeScreen(),
+        home: const MainShell(),
       ),
     );
   }

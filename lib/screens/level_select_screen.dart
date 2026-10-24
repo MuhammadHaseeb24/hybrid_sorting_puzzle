@@ -19,7 +19,9 @@ double _nodeX(int level, double width) =>
 
 /// Winding road map with all 320 levels (level 1 at the bottom).
 class LevelSelectScreen extends StatefulWidget {
-  const LevelSelectScreen({super.key});
+  /// When true (inside the bottom-nav shell) the back button is hidden.
+  final bool embedded;
+  const LevelSelectScreen({super.key, this.embedded = false});
 
   @override
   State<LevelSelectScreen> createState() => _LevelSelectScreenState();
@@ -27,6 +29,7 @@ class LevelSelectScreen extends StatefulWidget {
 
 class _LevelSelectScreenState extends State<LevelSelectScreen> {
   final ScrollController _sc = ScrollController();
+  final ScrollController _chapterSc = ScrollController();
   late final ValueNotifier<int> _world;
   bool _jumped = false;
 
@@ -41,6 +44,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
   @override
   void dispose() {
     _sc.dispose();
+    _chapterSc.dispose();
     _world.dispose();
     super.dispose();
   }
@@ -51,7 +55,15 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
     final level = ((center - 30) / _itemH).floor() + 1;
     final idx = WorldTheme.indexForLevel(
         math.max(1, math.min(LevelRepository.totalLevels, level)));
-    if (idx != _world.value) _world.value = idx;
+    if (idx != _world.value) {
+      _world.value = idx;
+      if (_chapterSc.hasClients) {
+        final t = math.max(
+            0.0, math.min(_chapterSc.position.maxScrollExtent, idx * 92.0 - 120));
+        _chapterSc.animateTo(t,
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    }
   }
 
   double _targetFor(int level) {
@@ -100,7 +112,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                         reverse: true,
                         itemExtent: _itemH,
                         cacheExtent: 400,
-                        padding: const EdgeInsets.only(top: 70, bottom: 30),
+                        padding: const EdgeInsets.only(top: 124, bottom: 30),
                         itemCount: LevelRepository.totalLevels,
                         physics: const BouncingScrollPhysics(),
                         itemBuilder: (context, index) {
@@ -116,6 +128,7 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
                         },
                       ),
                       _topBar(context, game, worldIdx),
+                      _chapterStrip(game, worldIdx),
                       Positioned(
                         right: 16,
                         bottom: 18,
@@ -188,11 +201,14 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            color: AppTheme.textPrimary,
-          ),
+          if (!widget.embedded)
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              color: AppTheme.textPrimary,
+            )
+          else
+            const SizedBox(width: 12),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -229,7 +245,106 @@ class _LevelSelectScreenState extends State<LevelSelectScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.monetization_on_rounded,
+                    color: AppTheme.gold, size: 18),
+                const SizedBox(width: 4),
+                Text(
+                  '${game.coins}',
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  /// Horizontal chapter (world) picker: tap to jump to that chapter.
+  Widget _chapterStrip(GameProvider game, int worldIdx) {
+    return Positioned(
+      top: 64,
+      left: 0,
+      right: 0,
+      height: 50,
+      child: ListView.separated(
+        controller: _chapterSc,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        itemCount: WorldTheme.worlds.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final w = WorldTheme.worlds[i];
+          final start = i * WorldTheme.levelsPerWorld + 1;
+          final open = game.unlockedLevel >= start;
+          final selected = i == worldIdx;
+          return GestureDetector(
+            onTap: () {
+              Haptics.tap();
+              SoundService().playClick();
+              if (_sc.hasClients) {
+                _sc.animateTo(
+                  _targetFor(math.min(LevelRepository.totalLevels, start + 12)),
+                  duration: const Duration(milliseconds: 700),
+                  curve: Curves.easeOutCubic,
+                );
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 84,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: selected
+                    ? LinearGradient(colors: [
+                        Color.lerp(w.primary, Colors.white, 0.2)!,
+                        w.primary,
+                      ])
+                    : null,
+                color: selected ? null : Colors.black.withOpacity(0.3),
+                border: Border.all(
+                  color: selected
+                      ? Colors.white.withOpacity(0.8)
+                      : Colors.white.withOpacity(open ? 0.2 : 0.08),
+                  width: selected ? 1.6 : 1,
+                ),
+                boxShadow: selected
+                    ? [BoxShadow(color: w.primary.withOpacity(0.6), blurRadius: 12)]
+                    : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Opacity(
+                    opacity: open ? 1 : 0.45,
+                    child: Text(open ? w.icon : '🔒',
+                        style: const TextStyle(fontSize: 17)),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Ch ${i + 1}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white.withOpacity(open ? 1 : 0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
